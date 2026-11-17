@@ -101,6 +101,7 @@ function Apply-UnifiedPatch([string]$PatchFile, [string]$BaseDir) {
       $script:pf_lines = ((Get-Content $tp -Raw -Encoding UTF8) -replace "`r`n", "`n") -split "`n"
     }
     elseif ($line -like "@@*") { & $flush }
+    elseif ($line -like "--- *") { }
     elseif ($line -like "\*") { }
     elseif ($script:pf_cur) {
       if ($line -like "+*") { $script:pf_new.Add($line.Substring(1)) }
