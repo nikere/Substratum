@@ -8,8 +8,8 @@
 ### Windows (Desktop or Android `.love`)
 
 1. Download or clone this repository (or grab the latest release zip).
-2. Copy the **Substratum** folder (`build.bat`, `build.ps1`, `mods/`, `patches/`, `androidlua/`) into your **Apotheosis Engine** game folder next to `apotheosisEngine.exe` *(or pass `-GameDir "C:\Path\To\Apotheosis Engine"` to `build.ps1`)*.
-3. Double-click **`build.bat`** and select your target:
+2. Copy the **Substratum** folder (`builder.bat`, `builder.ps1`, `mods/`, `patches/`, `androidlua/`) into your **Apotheosis Engine** game folder next to `apotheosisEngine.exe` *(or pass `-GameDir "C:\Path\To\Apotheosis Engine"` to `builder.ps1`)*.
+3. Double-click **`builder.bat`** and select your target:
    * **`[1]` Windows Desktop:** Downloads and caches the official LÖVE 11.5 runtime in `%LOCALAPPDATA%\Substratum` and outputs a standalone **`out\Substratum\Substratum.exe`**.
    * **`[2]` Android LÖVE:** Applies `android.patch`, injects `android.lua` + a `luasteam` stub, and outputs **`out\game.love`**.
 4. Run `out\Substratum\Substratum.exe` directly (your saves remain in `%APPDATA%\LOVE\apot01`).
@@ -25,7 +25,7 @@
 
 ### Linux / WSL *(Experimental — Untested)*
 
-> **Note:** `build.sh` mirrors the Windows builder logic for POSIX environments, but has not been tested on a live Linux machine yet.
+> **Note:** `builder.sh` mirrors the Windows builder logic for POSIX environments, but has not been tested on a live Linux machine yet.
 
 ---
 
