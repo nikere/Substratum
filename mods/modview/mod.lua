@@ -36,6 +36,12 @@ function M:init(game)
     pauseMenu:hide()
     open = true
   end)
+  if game.mods.addTitleButton then
+    game.mods:addTitleButton("mods", "MODS", function(g, titleScene)
+      if isReleased() then return end
+      open = true
+    end)
+  end
 
   game.mods:onReady(function(g)
     if g.machine and g.machine.kill then

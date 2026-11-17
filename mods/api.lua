@@ -7,7 +7,8 @@ function Api.create(game, loaderState)
   local OptionsPanel = require("src.ui.options_panel")
   local Taskbar = require("src.ui.taskbar")
   local AppRegistry = require("src.services.apps")
-
+  local creditInjections = {}
+  local titleButtons = {}
   local modLabels = {}
   local modBilingual = {}
   local keyHandlers = {}
@@ -17,7 +18,10 @@ function Api.create(game, loaderState)
   local modOptions = {}
   local headlineQueue = {}
   local forcedApps = {}
+
   local isReady = false
+  local titlePatched = false
+  local origCreditsParse = nil
 
   if not StringStore._modPatched then
     StringStore._modPatched = true
@@ -97,6 +101,92 @@ function Api.create(game, loaderState)
       end
     end
   end
+
+   local function ensureCreditsPatched()
+    if origCreditsParse then return end
+    local Credits = require("src.scenes.credits")
+    origCreditsParse = Credits.parse
+    function Credits.parse(text, ...)
+      local rows = origCreditsParse(text, ...)
+      for _, row in ipairs(creditInjections) do
+        table.insert(rows, row)
+      end
+      return rows
+    end
+  end
+
+  local function ensureTitlePatched()
+    if titlePatched then return end
+    titlePatched = true
+    local Title = require("src.scenes.title")
+    local Rect = require("src.core.rect")
+    local balance = require("src.data.balance")
+
+    local origMainItems = Title.mainItems
+    function Title:mainItems(...)
+      local items = origMainItems(self, ...)
+      if #titleButtons == 0 then return items end
+
+      local w, h = love.graphics.getDimensions()
+      local cfg = balance.titleLayout
+      local bw = 280
+      local x = (w - bw) / 2
+
+      local mainCol, barCol = {}, {}
+      for _, it in ipairs(items) do
+        if it.column == "bar" then barCol[#barCol + 1] = it else mainCol[#mainCol + 1] = it end
+      end
+
+      local insertAt = math.max(1, #mainCol)
+      for _, btn in ipairs(titleButtons) do
+        table.insert(mainCol, insertAt, {
+          id = btn.id,
+          labelId = btn.labelId,
+          enabled = true,
+        })
+        insertAt = insertAt + 1
+      end
+
+      local extra = self.recent and 24 or 0
+      local n = #mainCol
+      local floorY, bottomY = h * 0.46, self:barTop() - cfg.barClear
+      local avail = math.max(140, bottomY - floorY)
+      local rowMax = math.max(46, h * cfg.rowShare)
+      local bh = math.max(26, math.min(rowMax, (avail - extra - 14 * (n - 1)) / n))
+      local gap = math.max(6, math.min(14, (avail - extra - bh * n) / math.max(1, n - 1)))
+      local blockH = bh * n + extra + gap * (n - 1)
+      local masthead = self:mastheadBottom()
+      local y = math.max(floorY, masthead + (bottomY - masthead - blockH) / 2)
+
+      local out = {}
+      for _, it in ipairs(mainCol) do
+        it.x, it.y, it.w = x, y, bw
+        it.h = bh + (it.tall and extra or 0)
+        y = y + it.h + gap
+        out[#out + 1] = it
+      end
+      for _, it in ipairs(barCol) do out[#out + 1] = it end
+      return out
+    end
+
+    local origMouse = Title.mousepressed
+    function Title:mousepressed(mx, my, b, ...)
+      if b == 1 and not self.confirm and self.page == "main" and #titleButtons > 0 then
+        for _, it in ipairs(self:mainItems()) do
+          if it.enabled and Rect.contains(it.x, it.y, it.w, it.h, mx, my) then
+            for _, btn in ipairs(titleButtons) do
+              if btn.id == it.id then
+                if btn.fn then btn.fn(self.game, self) end
+                return
+              end
+            end
+          end
+        end
+      end
+      return origMouse(self, mx, my, b, ...)
+    end
+  end
+
   local function onReady(fn)
     if isReady then
       fn(game)
@@ -186,7 +276,7 @@ function Api.create(game, loaderState)
       keyHandlers[key] = keyHandlers[key] or {}
       table.insert(keyHandlers[key], fn)
     end,
-
+    
     -- TERMINAL & LOGBOOK
     addTerminalCommand = function(self, def)
       local secrets = require("src.data.terminal_secrets")
@@ -272,9 +362,31 @@ function Api.create(game, loaderState)
         en = def.title
       }
     end
-
-
     end,
+
+    addCreditRow = function(self, kind, text)
+  ensureCreditsPatched()
+  -- kind: "gap", "title", "head", or "text"
+  table.insert(creditInjections, {
+    kind = kind or "text",
+    text = text ~= nil and tostring(text) or nil,
+  })
+end,
+
+    setStudioLogo = function(self, path)
+      local balance = require("src.data.balance")
+      balance.studio.logo = path
+      local cur = game and game.scenes and game.scenes:current()
+      if cur and cur.studioLogo then
+        local ok, img = pcall(love.graphics.newImage, path)
+        if ok and img then
+          img:setFilter("linear", "linear")
+          cur.studioLogo = img
+        end
+      end
+      return true
+    end,
+
 
     unlockApp = function(self, id)
       forcedApps[id] = true
@@ -291,6 +403,238 @@ function Api.create(game, loaderState)
       return true
     end,
 
+    setAscensionStrength = function(self, strength)
+   local Ascension = require("src.ui.ascension")
+   if not Ascension._modPatched then
+     Ascension._modPatched = true
+     Ascension._modForceK = nil
+     local origUnder = Ascension.drawUnder
+     function Ascension.drawUnder(k, ...)
+       return origUnder(Ascension._modForceK ~= nil and Ascension._modForceK or k, ...)
+     end
+     local origOver = Ascension.drawOver
+     function Ascension.drawOver(k, ...)
+       return origOver(Ascension._modForceK ~= nil and Ascension._modForceK or k, ...)
+     end
+     local origJitter = Ascension.jitter
+     function Ascension.jitter(k, ...)
+       return origJitter(Ascension._modForceK ~= nil and Ascension._modForceK or k, ...)
+     end
+     local origLabel = Ascension.labelStrength
+     function Ascension.labelStrength(k)
+       return origLabel(Ascension._modForceK ~= nil and Ascension._modForceK or k)
+     end
+   end
+   Ascension._modForceK = strength and math.max(0, math.min(1, strength)) or nil
+   return true
+ end,
+
+     registerFlag = function(self, lang, drawFn)
+      assert(type(lang) == "string" and type(drawFn) == "function", "registerFlag(lang, drawFn) invalid args")
+      local Flags = require("src.ui.flags")
+      if not Flags._modFlags then
+        Flags._modFlags = {}
+        local origDraw = Flags.draw
+        function Flags.draw(l, x, y, w, h, alpha)
+          if Flags._modFlags[l] then
+            Flags._modFlags[l](x, y, w, h, alpha or 1)
+            love.graphics.setColor(1, 1, 1, 1)
+            return
+          end
+          return origDraw(l, x, y, w, h, alpha)
+        end
+      end
+      Flags._modFlags[lang] = drawFn
+      return true
+    end,
+
+ drawAscensionEye = function(self, k, cx, cy, ew, open)
+   local Ascension = require("src.ui.ascension")
+   local w, h = love.graphics.getDimensions()
+   local mx, my = love.mouse.getPosition()
+   Ascension.drawEye(k or 1, love.timer.getTime(), w, h, mx, my, cx or w / 2, cy or h / 2, ew or 240, open or 1)
+ end,
+
+    -- DEADLOG
+    addDeliriumLine = function(self, tier, line)
+      local Delirium = require("src.data.delirium")
+      local idx = math.max(1, math.min(#Delirium, tonumber(tier) or 1))
+      local bucket = Delirium[idx]
+      if not bucket then return false end
+      local entry = type(line) == "table" and line or { en = tostring(line) }
+      table.insert(bucket, entry)
+      return true
+    end,
+
+    setDeadLogActive = function(self, state)
+      local DeadLog = require("src.ui.deadlog")
+      if not DeadLog._origActive then
+        DeadLog._origActive = DeadLog.active
+        DeadLog._modForceActive = nil
+        function DeadLog.active(g)
+          if DeadLog._modForceActive ~= nil then
+            return DeadLog._modForceActive
+          end
+          return DeadLog._origActive(g)
+        end
+      end
+      DeadLog._modForceActive = state
+      return true
+    end,
+
+    setDeadLogStrength = function(self, strength)
+      local DeadLog = require("src.ui.deadlog")
+      if not DeadLog._origStrength then
+        DeadLog._origStrength = DeadLog.strength
+        DeadLog._modForceStrength = nil
+        function DeadLog.strength(g)
+          if DeadLog._modForceStrength ~= nil then
+            return math.max(0, math.min(1, DeadLog._modForceStrength))
+          end
+          return DeadLog._origStrength(g)
+        end
+      end
+      DeadLog._modForceStrength = strength
+      return true
+    end,
+
+    pushDeadLog = function(self, text, kind)
+      local cur = game.scenes and game.scenes:current()
+      local dl = cur and (cur.deadLog or cur.deadlog)
+      if not dl or not dl.push then return false end
+      local ms = game.runtimer and game.runtimer.cumulativeMs or 0
+      dl:push({ text = tostring(text), kind = kind or "voice", atMs = ms })
+      return true
+    end,
+
+    -- VIRUS, POPUPS & GUEST CURSORS
+    Virusinfect = function(self)
+      local Virus = require("src.services.virus")
+      return Virus.infect(game)
+    end,
+
+    Viruscure = function(self)
+      local Virus = require("src.services.virus")
+      return Virus.cure(game)
+    end,
+
+    isInfected = function(self)
+      local Virus = require("src.services.virus")
+      return Virus.active(game)
+    end,
+
+    addVirusAd = function(self, ad)
+      assert(type(ad) == "table", "addVirusAd requires a table")
+      local VirusAds = require("src.data.virusads")
+      local row = {
+        name = ad.name or ("mod_ad_" .. (#VirusAds.list + 1)),
+        title = type(ad.title) == "table" and ad.title or { en = tostring(ad.title or "!!") },
+        body = type(ad.body) == "table" and ad.body or { en = tostring(ad.body or "") },
+        button = type(ad.button) == "table" and ad.button or { en = tostring(ad.button or "OK") },
+      }
+      if not VirusAds._modAds then
+        VirusAds._modAds = {}
+        local origReload = VirusAds.reload
+        function VirusAds.reload()
+          local list = origReload()
+          for _, m in ipairs(VirusAds._modAds) do
+            table.insert(list, m)
+          end
+          return list
+        end
+      end
+      table.insert(VirusAds._modAds, row)
+      table.insert(VirusAds.list, row)
+      return #VirusAds.list
+    end,
+
+    removeVirusAd = function(self, nameOrIndex)
+      local VirusAds = require("src.data.virusads")
+      if VirusAds._modAds then
+        for i = #VirusAds._modAds, 1, -1 do
+          if i == nameOrIndex or VirusAds._modAds[i].name == nameOrIndex then
+            table.remove(VirusAds._modAds, i)
+          end
+        end
+      end
+      for i = #VirusAds.list, 1, -1 do
+        if i == nameOrIndex or VirusAds.list[i].name == nameOrIndex then
+          table.remove(VirusAds.list, i)
+          return true
+        end
+      end
+      return false
+    end,
+
+    spawnVirusPopup = function(self, adIndex)
+      local cur = game.scenes and game.scenes:current()
+      local vfx = cur and (cur.virusFx or cur.virus)
+      if not vfx or not vfx.spawnPopup then return nil end
+      if adIndex then
+        local VirusAds = require("src.data.virusads")
+        if VirusAds.list[adIndex] then
+          vfx.serial = (vfx.serial or 0) + 1
+          local Popup = require("src.ui.viruspopup")
+          local app = Popup(game, vfx.serial, adIndex)
+          local wa = cur:workArea()
+          local P = require("src.data.balance").virus.popup
+          local x = wa.x + love.math.random(0, math.max(0, wa.w - P.w))
+          local y = wa.y + love.math.random(0, math.max(0, wa.h - P.h))
+          return cur:openWindow(app, { titleText = app:titleText(), x = x, y = y })
+        end
+      end
+      return vfx:spawnPopup()
+    end,
+
+    setGhostCount = function(self, count)
+      local Virus = require("src.services.virus")
+      local VirusFx = require("src.ui.virusfx")
+      if not Virus._origGhostCount then
+        Virus._origGhostCount = Virus.ghostCount
+        Virus._modGhostMin = 0
+        function Virus.ghostCount(p)
+          return math.max(Virus._modGhostMin or 0, Virus._origGhostCount(p))
+        end
+      end
+      if not VirusFx._modUpdatePatched then
+        VirusFx._modUpdatePatched = true
+        local origUpdate = VirusFx.update
+        function VirusFx:update(dt)
+          origUpdate(self, dt)
+          if not self:active() and (Virus._modGhostMin or 0) > 0 and not self.game.paused then
+            local d = self.desktop
+            if d and not d:isModalOpen() and d:has("icons") then
+              local want = Virus._modGhostMin
+              for k, gh in ipairs(self.ghosts) do
+                if k <= want and not gh.on then self:wake(gh)
+                elseif k > want and gh.on and not gh.job then gh.on = false end
+                if gh.on then self:drive(gh, dt) end
+              end
+              self.logT = math.max(0, self.logT - dt)
+            end
+          end
+        end
+      end
+      local cur = game.scenes and game.scenes:current()
+      local vfx = cur and (cur.virusFx or cur.virus)
+      local maxG = vfx and vfx.ghosts and #vfx.ghosts or 4
+      Virus._modGhostMin = math.max(0, math.min(maxG, count or 0))
+      if vfx and vfx.ghosts then
+        for k = 1, Virus._modGhostMin do
+          if vfx.ghosts[k] and not vfx.ghosts[k].on then
+            vfx:wake(vfx.ghosts[k])
+          end
+        end
+      end
+      return Virus._modGhostMin
+    end,
+
+    getGhosts = function(self)
+      local cur = game.scenes and game.scenes:current()
+      local vfx = cur and (cur.virusFx or cur.virus)
+      return vfx and vfx.ghosts or {}
+    end,
+
 
     unlockLegacyApp = function(self, id)
       local manifest = require("src.data.apps")
@@ -302,6 +646,33 @@ function Api.create(game, loaderState)
         end
       end
       return false
+    end,
+    -- TRANSMISSIONS
+    setTransmission = function(self, stage, lines)
+      assert(type(stage) == "number" and type(lines) == "table", "setTransmission(stage, lines) invalid args")
+      local Transmission = require("src.ui.transmission")
+      local ids = {}
+      for i, text in ipairs(lines) do
+        local key = ("tx.stage%d.%d"):format(stage, i)
+        self:addString(key, text)
+        ids[i] = key
+      end
+      Transmission.SCRIPT[stage] = ids
+      return true
+    end,
+
+    playTransmission = function(self, stageOrLines)
+      local Transmission = require("src.ui.transmission")
+      local cur = game.scenes and game.scenes:current()
+      if not cur then return false end
+      local stage = stageOrLines
+      if type(stageOrLines) == "table" then
+        stage = 99
+        self:setTransmission(stage, stageOrLines)
+      end
+      if not Transmission.has(stage) then return false end
+      cur.transmission = Transmission(game, stage)
+      return true
     end,
 
     -- DATA TABLES
@@ -355,7 +726,7 @@ function Api.create(game, loaderState)
     disabled = loaderState.disabled,
 
     toggleMod = function(self, folder)
-      if folder == "modviewr" then return false end
+      if folder == "modview" then return false end
       local nextState = not (loaderState.disabled[folder] == true)
       loaderState.disabled[folder] = nextState or nil
       loaderState.saveConfig()
@@ -374,11 +745,14 @@ function Api.create(game, loaderState)
     ui = setmetatable({}, {
     __index = function(t, k)
       local map = {
+        MatrixRain = "src.ui.matrixrain",
+        Ascension  = "src.ui.ascension",
         Widgets = "src.ui.widgets",
         Theme   = "src.ui.theme",
         Cursor  = "src.ui.cursor",
         Rect    = "src.core.rect",
         Format  = "src.core.format",
+        Kit3D   = "src.ui.wirekit",
       }
       if map[k] then
         t[k] = require(map[k])
@@ -423,6 +797,19 @@ function Api.create(game, loaderState)
     end
   end,
 
+  addTitleButton = function(self, id, label, fn)
+  ensureTitlePatched()
+  local labelId = "title.mod_" .. id
+  modLabels[labelId] = label
+  table.insert(titleButtons, { id = id, labelId = labelId, fn = fn })
+end,
+
+removeTitleButton = function(self, id)
+  for i = #titleButtons, 1, -1 do
+    if titleButtons[i].id == id then table.remove(titleButtons, i) end
+  end
+end,
+
   addPauseButton = function(self, id, label, fn, danger)
     local labelId = "pause.mod_" .. id
     modLabels[labelId] = label
@@ -466,7 +853,7 @@ function Api.create(game, loaderState)
       end
     end,
 
-     addProcess = function(self, def)
+  addProcess = function(self, def)
    local P = require("src.data.processes")
    assert(def and def.key, "addProcess requires def.key")
    def.deps = def.deps or {}
@@ -542,6 +929,27 @@ end,
   return true
 end,
 
+    -- kill and revice (yes they differ lol)
+     killProcess = function(self, key)
+      return game.machine ~= nil and game.machine:kill(key) or false
+    end,
+
+    reviveProcess = function(self, key)
+      return game.machine ~= nil and game.machine:revive(key) or false
+    end,
+
+    isProcessDead = function(self, key)
+      return game.machine ~= nil and game.machine:isDead(key) or false
+    end,
+
+    isEffectAlive = function(self, effect)
+      if not game.machine then return true end
+      return game.machine:alive(effect)
+    end,
+
+    getKilledProcesses = function(self)
+      return game.machine and game.machine:snapshot() or {}
+    end,
 
     listMaterials = function(self)
       local out = {}
@@ -642,6 +1050,51 @@ end,
       if game and game.audio then
         game.audio:play(name, pitch)
       end
+    end,
+    registerCursor = function(self, id, drawFn)
+      assert(type(id) == "string" and type(drawFn) == "function", "registerCursor(id, drawFn) invalid args")
+      local Cursor = require("src.ui.cursor")
+      if not Cursor._modCursors then
+        Cursor._modCursors = {}
+        local origDrawAt = Cursor.drawAt
+        function Cursor.drawAt(x, y, fill, outline)
+          local fn = Cursor._modCursors[Cursor.style]
+          if fn then
+            love.graphics.push()
+            love.graphics.translate(x, y)
+            if Cursor.scale ~= 1 then love.graphics.scale(Cursor.scale, Cursor.scale) end
+            fn(0, 0, fill, outline)
+            love.graphics.pop()
+            love.graphics.setColor(1, 1, 1, 1)
+            return
+          end
+          return origDrawAt(x, y, fill, outline)
+        end
+        local origDraw = Cursor.draw
+        function Cursor.draw()
+          local fn = Cursor._modCursors[Cursor.style]
+          if fn and not Cursor.system and not Cursor.hidden and love.mouse then
+            if not (love.window and love.window.hasMouseFocus and not love.window.hasMouseFocus()) then
+              local Theme = require("src.ui.theme")
+              local mx, my = love.mouse.getPosition()
+              local c = Theme.color
+              love.graphics.push()
+              love.graphics.translate(mx, my)
+              if Cursor.scale ~= 1 then love.graphics.scale(Cursor.scale, Cursor.scale) end
+              fn(0, 0, c.cream, c.fieldDark)
+              love.graphics.pop()
+              love.graphics.setColor(1, 1, 1, 1)
+              return
+            end
+          end
+          return origDraw()
+        end
+      end
+      if not Cursor._modCursors[id] then
+        table.insert(Cursor.STYLES, id)
+      end
+      Cursor._modCursors[id] = drawFn
+      return true
     end,
 
     -- AESTHETICS
