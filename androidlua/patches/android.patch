@@ -1,3 +1,40 @@
+diff --git a/vanila/conf.lua b/modsand/conf.lua
+index 7c0e790..9810249 100644
+--- a/conf.lua
++++ b/conf.lua
+@@ -3,27 +3,20 @@
+ 
+ 
+ function love.conf(t)
+-
+-
+-  pcall(function() require("src.core.dpiaware").apply() end)
+-
+   t.identity = "apot01"
+   t.version  = "11.5"
+-  t.console  = false
++  t.console  = true
+ 
+   t.window.title     = "Apotheosis Engine"
+   t.window.icon      = "assets/graphics/icon.png"
+-  t.window.width     = 1280
+-  t.window.height    = 800
+-  t.window.resizable = true
+-  t.window.minwidth  = 960
+-  t.window.minheight = 600
+-  t.window.vsync     = 1
+-  t.window.highdpi   = true
+-
++  t.window.width       = 0
++  t.window.height      = 0
++  t.window.resizable   = false
++  t.window.highdpi     = true
++  t.window.usedpiscale = false
+ 
+ 
+-  t.window.fullscreen     = false
++  t.window.fullscreen     = true
+   t.window.fullscreentype = "desktop"
 diff --git a/modloader/mods/init.lua b/modsand/mods/init.lua
 index d78ec59..6fc2487 100644
 --- a/mods/init.lua
