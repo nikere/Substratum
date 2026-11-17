@@ -355,7 +355,7 @@ function Api.create(game, loaderState)
     disabled = loaderState.disabled,
 
     toggleMod = function(self, folder)
-      if folder == "modmanager" then return false end
+      if folder == "modviewr" then return false end
       local nextState = not (loaderState.disabled[folder] == true)
       loaderState.disabled[folder] = nextState or nil
       loaderState.saveConfig()
