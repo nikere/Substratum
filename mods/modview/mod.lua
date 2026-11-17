@@ -142,7 +142,8 @@ function M:init(game)
     lg.setFont(font)
 
     local sw, sh = lg.getDimensions()
-    sw, sh = sw / scale, sh / scale
+
+
 
     -- Upper-right corner badge when closed
     if not open then
