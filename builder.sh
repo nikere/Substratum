@@ -95,17 +95,82 @@ find "$GAME" -type f -name "*.lua" -exec sed -i 's/\r$//' {} + 2>/dev/null || tr
 apply_patch() {
     local p="$1"
     [[ -f "$p" ]] || die "Missing patch: $p"
-    sed -i 's/\r$//' "$p" 2>/dev/null || true
-    if ! patch -p1 --forward --batch -d "$GAME" < "$p"; then
-        if patch -p1 --reverse --check -d "$GAME" < "$p" >/dev/null 2>&1; then
-            say "  $(basename "$p") already applied."
-        else
-            die "Patch failed: $(basename "$p"). See patch output above."
+    for target in main.lua conf.lua mods/init.lua; do
+        if [[ -f "$GAME/$target" ]]; then
+            tr -d '\r' < "$GAME/$target" > "$GAME/$target.lf" && mv "$GAME/$target.lf" "$GAME/$target"
         fi
-    else
+    done
+    local split_dir="$WORK/patch_splits_$(basename "$p")"
+    mkdir -p "$split_dir"
+    tr -d '\r' < "$p" | awk -v dir="$split_dir" '
+        function flush() {
+            if (in_hunk && outfile != "") {
+                printf "@@ -%d,%d +%d,%d @@%s\n", old_s, old_c, new_s, new_c, tail > outfile
+                printf "%s", buf > outfile
+                in_hunk = 0; buf = ""
+            }
+        }
+        /^diff --git / {
+            flush()
+            if (outfile != "") close(outfile)
+            file_num++
+            outfile = dir "/part_" file_num ".patch"
+            print $0 > outfile
+            next
+        }
+        /^--- / {
+            flush()
+            if (outfile == "") {
+                file_num++
+                outfile = dir "/part_" file_num ".patch"
+            }
+            print $0 > outfile
+            next
+        }
+        /^\+\+\+ / {
+            flush()
+            print $0 > outfile
+            next
+        }
+        /^@@ / {
+            flush()
+            match($0, /^@@ -([0-9]+)(,[0-9]+)? \+([0-9]+)(,[0-9]+)? @@(.*)$/, m)
+            old_s = m[1]; new_s = m[3]; tail = m[5]
+            old_c = 0; new_c = 0; in_hunk = 1; buf = ""
+            next
+        }
+        in_hunk {
+            c = substr($0, 1, 1)
+            if (c == "-") { old_c++ }
+            else if (c == "+") { new_c++ }
+            else { old_c++; new_c++ }
+            buf = buf $0 "\n"
+            next
+        }
+        outfile != "" { print $0 > outfile }
+        END { flush(); if (outfile != "") close(outfile) }
+    '
+    local applied=0
+    for part in "$split_dir"/*.patch; do
+        [[ -f "$part" ]] || continue
+        if ! patch -p1 --forward --batch -d "$GAME" < "$part" >/dev/null 2>&1; then
+            if patch -p1 --reverse --check -d "$GAME" < "$part" >/dev/null 2>&1; then
+                : # already applied
+            elif ! patch -p1 --forward --batch --ignore-whitespace -d "$GAME" < "$part" >/dev/null 2>&1; then
+                patch -p1 --forward --batch -d "$GAME" < "$part" || true
+                die "Patch failed on chunk: $(basename "$part") in $(basename "$p")."
+            fi
+        fi
+        applied=1
+    done
+
+    if [[ "$applied" -eq 1 ]]; then
         say "Applied $(basename "$p")"
+    else
+        die "No valid patch blocks found in $(basename "$p")"
     fi
 }
+
 apply_patch "$REL_DIR/patches/main.lua.patch"
 
 rm -rf "$GAME/mods"
@@ -134,10 +199,11 @@ fi
 LOVE_OUT="$WORK/patched.love"
 (cd "$GAME" && zip -q -r -X "$LOVE_OUT" .)
 
-unzip -l "$LOVE_OUT" | grep -q 'mods/init.lua' || die "Verify failed: mods/init.lua missing"
-unzip -p "$LOVE_OUT" main.lua | grep -qF '[SUBSTRATUM]' || die "Verify failed: main.lua lacks [SUBSTRATUM]"
+LISTING="$(unzip -l "$LOVE_OUT")"
+grep -q 'mods/init.lua' <<< "$LISTING" || die "Verify failed: mods/init.lua missing"
+unzip -p "$LOVE_OUT" main.lua | grep -F '[SUBSTRATUM]' >/dev/null || die "Verify failed: main.lua lacks [SUBSTRATUM]"
 if [[ "$TARGET" == "android" ]]; then
-    unzip -l "$LOVE_OUT" | grep -q 'luasteam.lua' || die "Verify failed: luasteam stub missing"
+    grep -q 'luasteam.lua' <<< "$LISTING" || die "Verify failed: luasteam stub missing"
 fi
 say "Patched archive verified."
 
