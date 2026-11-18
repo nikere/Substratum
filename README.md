@@ -24,9 +24,13 @@
    * `/sdcard/apotheosis/overrides/<module/path>.lua`
 
 ### Linux / WSL
-
+* **Linux (`builder.sh`):** Tested on custom Linux (`./builder.sh desktop` / `./builder.sh android`). Uses system `love` if installed or caches the official LÖVE 11.5 AppImage in `~/.cache/substratum`.
 > **Note:** `builder.sh` mirrors the Windows builder logic for POSIX environments.
 has been tested on: custom Linux
+
+### macOS
+* **macOS (`builder.sh`):** Experimental / untested (`./builder.sh desktop` packages `Substratum.app` with `Substratum.love` inside `Contents/Resources/`).
+
 ---
 
 ## Creating Your First Mod
