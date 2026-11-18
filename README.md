@@ -23,10 +23,10 @@
    * `/sdcard/apotheosis/mods/<mod_folder>/mod.lua`
    * `/sdcard/apotheosis/overrides/<module/path>.lua`
 
-### Linux / WSL *(Experimental — Untested)*
+### Linux / WSL
 
-> **Note:** `builder.sh` mirrors the Windows builder logic for POSIX environments, but has not been tested on a live Linux machine yet.
-
+> **Note:** `builder.sh` mirrors the Windows builder logic for POSIX environments.
+has been tested on: custom Linux
 ---
 
 ## Creating Your First Mod
