@@ -16,7 +16,7 @@
 
 ### Android Installation
 
-1. Build `out/game.love` using option `[2]` in `build.bat` or `./build.sh android`. (untested)
+1. Build `out/game.love` using option `[2]` in `build.bat` or `./build.sh android`.
 2. Either drop `game.love` into your `love-android` Gradle project at `app/src/main/assets/game.love` to compile an APK, or open `game.love` directly with the **LÖVE for Android (11.5)** app.
 3. **Grant Storage Permissions:** On Android 11+, you **must** manually grant **All Files Access** (*Settings → Apps → LÖVE / Substratum → Permissions → Files and media → Allow management of all files*). Without this permission, the loader cannot read or create external folders on `/sdcard`.
 4. Place custom Android mods and overrides on your device at:
