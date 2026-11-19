@@ -24,8 +24,8 @@ Folder with `mod.lua` returning a table:
 
 | Callback | Signature | When |
 |---|---|---|
-| `M:init` | `(mod, game, folder)` | during load; **register only** (scenes/audio absent); `pcall`ed, error → `mod._error` |
-| `M:onLoad` | `(mod, game, folder)` | after `game:load()`; live objects safe; `pcall`ed |
+| `M.init` | `(mod, game, folder)` | during load; **register only** (scenes/audio absent); `pcall`ed, error → `mod._error` |
+| `M.onLoad` | `(mod, game, folder)` | after `game:load()`; live objects safe; `pcall`ed |
 
 Order: overrides → chunk → `init` → `game:load()` → `onReady` queue → `onLoad`.
 `game.mods:restart()` re-runs everything with current toggle config.
