@@ -64,7 +64,7 @@ end
 
 return M
 ```
-> See **`docs/API_REFERENCE.md` (TBA)** for the full `game.mods` SDK reference (apps, processes, themes, materials, power, pause buttons, crash hooks, and more).
+> See **[`API_REFERENCE.md`](docs/API_REFERENCE.md)** for the full `game.mods` SDK reference (apps, processes, themes, materials, powers, window management, mascots, pause/title buttons, crash hooks, and more).
 
 ---
 
@@ -73,6 +73,5 @@ return M
 * **Unsandboxed Lua Execution:** Mods loaded through Substratum run with full LÖVE/Lua privileges (`io`, `os`, `ffi`). Only install mods and overrides from sources you trust.
 * **Steam Protection:** `main.lua.patch` intentionally disables Steamworks (`game.noSteam = true`) so custom mods, cheat packs, or stage-jumpers cannot pollute official Steam leaderboards or corrupt cloud saves.
 
--- TODO: documentation 
 ## License
 Substratum is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [`LICENSE`](LICENSE) for details.
