@@ -7,6 +7,10 @@ function Api.create(game, loaderState)
   local OptionsPanel = require("src.ui.options_panel")
   local Taskbar = require("src.ui.taskbar")
   local AppRegistry = require("src.services.apps")
+  local Theme = require("src.ui.theme")
+  local WallpaperOverlay = require("src.ui.wallpaper_overlay")
+
+  local customMascots = {}
   local creditInjections = {}
   local titleButtons = {}
   local modLabels = {}
@@ -18,7 +22,8 @@ function Api.create(game, loaderState)
   local modOptions = {}
   local headlineQueue = {}
   local forcedApps = {}
-
+  
+  local origMascotScan = nil
   local isReady = false
   local titlePatched = false
   local origCreditsParse = nil
@@ -101,6 +106,23 @@ function Api.create(game, loaderState)
       end
     end
   end
+   
+local function ensureMascotPatched()
+  if origMascotScan then return end
+  origMascotScan = WallpaperOverlay.scan
+  function WallpaperOverlay.scan(items, dir, ...)
+    local found = origMascotScan(items, dir, ...)
+    local baseN = #found
+    for i, m in ipairs(customMascots) do
+      found[#found + 1] = {
+        n = baseN + i,
+        path = m.path,
+        name = m.name or m.id,
+      }
+    end
+    return found
+  end
+end
 
    local function ensureCreditsPatched()
     if origCreditsParse then return end
@@ -506,6 +528,35 @@ end,
       dl:push({ text = tostring(text), kind = kind or "voice", atMs = ms })
       return true
     end,
+    
+
+     registerMascot = function(self, id, name, path)
+   ensureMascotPatched()
+   for i = #customMascots, 1, -1 do
+     if customMascots[i].id == id then table.remove(customMascots, i) end
+   end
+   table.insert(customMascots, { id = id, name = name or id, path = path })
+   return true
+ end,
+
+ setMascot = function(self, path, opts)
+   local overlay = game and game.desktop and game.desktop.overlay
+   if not overlay then return false end
+   if path then overlay:setImage(path) end
+   if opts then
+     if opts.blend then overlay:setBlend(opts.blend) end
+     if opts.flip ~= nil then overlay:setFlip(opts.flip) end
+     if opts.x or opts.y or opts.deg or opts.size then
+       overlay:setPlacement(
+         opts.x ~= nil and opts.x or overlay.posX,
+         opts.y ~= nil and opts.y or overlay.posY,
+         opts.deg ~= nil and opts.deg or math.deg(overlay.rot or 0),
+         opts.size ~= nil and opts.size or overlay.size
+       )
+     end
+   end
+   return true
+ end,
 
     -- VIRUS, POPUPS & GUEST CURSORS
     Virusinfect = function(self)
@@ -547,7 +598,7 @@ end,
       table.insert(VirusAds.list, row)
       return #VirusAds.list
     end,
-
+    
     removeVirusAd = function(self, nameOrIndex)
       local VirusAds = require("src.data.virusads")
       if VirusAds._modAds then
@@ -647,6 +698,51 @@ end,
       end
       return false
     end,
+
+    openApp = function(self, appId)
+      local scene = (game and game.runScene and game:runScene()) or (game and game.scenes and game.scenes:current())
+      if not scene then return nil end
+      if scene.openApp then return scene:openApp(appId) end
+      if scene.launch then return scene:launch(appId) end
+      if scene.launchApp then return scene:launchApp(appId) end
+      return nil
+    end,
+
+
+    closeApp = function(self, appId)
+      local scene = game and game.runScene and game:runScene()
+      local wm = scene and scene.wm
+      if not wm then return false end
+      local w = wm:windowForApp(appId)
+      if not w then return false end
+      if w.close then w:close() else wm:close(w) end
+      return true
+    end,
+
+    focusApp = function(self, appId)
+      local scene = game and game.runScene and game:runScene()
+      local wm = scene and scene.wm
+      if not wm then return false end
+      local w = wm:windowForApp(appId)
+      if not w then return false end
+      if w.state == "minimized" and w.restore then w:restore() end
+      wm:bringToFront(w)
+      return true
+    end,
+
+    getOpenApps = function(self)
+      local scene = game and game.runScene and game:runScene()
+      local wm = scene and scene.wm
+      local out = {}
+      if not wm or not wm.windows then return out end
+      for _, w in ipairs(wm.windows) do
+        if w.app and w.app.id then
+          out[#out + 1] = w.app.id
+        end
+      end
+      return out
+    end,
+
     -- TRANSMISSIONS
     setTransmission = function(self, stage, lines)
       assert(type(stage) == "number" and type(lines) == "table", "setTransmission(stage, lines) invalid args")
@@ -1075,7 +1171,6 @@ end,
           local fn = Cursor._modCursors[Cursor.style]
           if fn and not Cursor.system and not Cursor.hidden and love.mouse then
             if not (love.window and love.window.hasMouseFocus and not love.window.hasMouseFocus()) then
-              local Theme = require("src.ui.theme")
               local mx, my = love.mouse.getPosition()
               local c = Theme.color
               love.graphics.push()
@@ -1099,7 +1194,6 @@ end,
 
     -- AESTHETICS
     addTheme = function(self, row)
-      local Theme = require("src.ui.theme")
       local Aesthetics = require("src.data.aesthetics")
       row.index = #Aesthetics.list + 1
       row.nameId = row.nameId or ("aesthetics.theme." .. row.id)
