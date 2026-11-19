@@ -216,7 +216,7 @@ if [[ "$TARGET" == "android" ]]; then
     if [[ "$FETCH_ANDROID" == "1" ]] && [[ -z "$ANDROID_SRC" ]]; then
         say "Downloading LÖVE Android project..."
         ANDROID_ZIP="$CACHE/love-android.zip"
-        curl -fL -A "Substratum-Builder/1.0" "https://github.com" -o "$ANDROID_ZIP"
+        curl -fL -A "Substratum-Builder/1.0" "https://github.com/love2d/love-android/archive/refs/tags/11.5.zip" -o "$ANDROID_ZIP"
         mkdir -p "$CACHE/android-src"
         unzip -q "$ANDROID_ZIP" -d "$CACHE/android-src"
         ANDROID_SRC="$(find "$CACHE/android-src" -maxdepth 1 -mindepth 1 -type d | head -1)"
