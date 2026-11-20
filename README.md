@@ -4,6 +4,7 @@
 > **Zero Copyrighted Game Assets:** This repository contains only original loader/SDK code and minimal unified diff patches. You must own a legitimate copy of *Apotheosis Engine* on Steam to build and run Substratum.
 
 ## Quick Start
+> **Standalone Builders:** You do not need to download the entire repository, you only need `builder.sh` (Linux / macOS) or `builder.ps1` / `builder.bat` (Windows) placed next to `apotheosisEngine.exe`.
 
 ### Windows (Desktop or Android `.love`)
 
