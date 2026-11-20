@@ -79,10 +79,14 @@ elif [[ "$SRC" == *.love ]] || [[ "$SRC" == *.exe ]]; then
     set +e
     unzip -q "$SRC" -d "$GAME" 2>/dev/null
     UNZIP_RC=$?
+    if [[ $UNZIP_RC -gt 1 ]] && command -v bsdtar >/dev/null 2>&1; then
+        bsdtar -xf "$SRC" -C "$GAME" 2>/dev/null
+        UNZIP_RC=$?
+    fi
     chmod -R u+rwX "$GAME" 2>/dev/null || true
     set -e
     if [[ $UNZIP_RC -gt 1 ]]; then
-        die "Failed to extract $SRC (unzip exit code $UNZIP_RC). Is it a valid LÖVE game?"
+        die "Failed to extract $SRC (exit code $UNZIP_RC). Is it a valid LÖVE game?"
     fi
 else
     die "Unknown source type: $SRC"
@@ -134,11 +138,16 @@ apply_patch() {
         }
         /^@@ / {
             flush()
-            match($0, /^@@ -([0-9]+)(,[0-9]+)? \+([0-9]+)(,[0-9]+)? @@(.*)$/, m)
-            old_s = m[1]; new_s = m[3]; tail = m[5]
+            header = $0
+            sub(/^@@ -/, "", header)
+            old_s = header; sub(/[^0-9].*$/, "", old_s)
+            sub(/^[0-9]+(,[0-9]+)? \+/, "", header)
+            new_s = header; sub(/[^0-9].*$/, "", new_s)
+            tail = $0; sub(/^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@/, "", tail)
             old_c = 0; new_c = 0; in_hunk = 1; buf = ""
             next
         }
+
         in_hunk {
             c = substr($0, 1, 1)
             if (c == "-") { old_c++ }
@@ -244,6 +253,7 @@ else
         unzip -q "$LOVE_DL" -d "$WORK/macos"
         mv "$WORK/macos/love.app" "$DEST/Substratum.app"
         cp "$LOVE_OUT" "$DEST/Substratum.app/Contents/Resources/Substratum.love"
+        xattr -cr "$DEST/Substratum.app" 2>/dev/null || true
         echo
         echo "[SUCCESS] macOS bundle: $DEST/Substratum.app"
     elif [[ -n "$LOVE_BIN" ]]; then

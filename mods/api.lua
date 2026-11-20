@@ -8,7 +8,11 @@ function Api.create(game, loaderState)
   local Taskbar = require("src.ui.taskbar")
   local AppRegistry = require("src.services.apps")
   local Theme = require("src.ui.theme")
-  local WallpaperOverlay = require("src.ui.wallpaper_overlay")
+  local ok_wo, WallpaperOverlay = pcall(require, "src.ui.wallpaperoverlay")
+if not ok_wo then
+    ok_wo, WallpaperOverlay = pcall(require, "src.ui.wallpaper_overlay")
+end
+if not ok_wo then WallpaperOverlay = nil end
 
   local customMascots = {}
   local creditInjections = {}
