@@ -8,6 +8,7 @@ function Api.create(game, loaderState)
   local Taskbar = require("src.ui.taskbar")
   local AppRegistry = require("src.services.apps")
   local Theme = require("src.ui.theme")
+
   local ok_wo, WallpaperOverlay = pcall(require, "src.ui.wallpaperoverlay")
 if not ok_wo then
     ok_wo, WallpaperOverlay = pcall(require, "src.ui.wallpaper_overlay")
@@ -15,6 +16,7 @@ end
 if not ok_wo then WallpaperOverlay = nil end
 
   local customMascots = {}
+  local customStripes = {}
   local creditInjections = {}
   local titleButtons = {}
   local modLabels = {}
@@ -26,11 +28,18 @@ if not ok_wo then WallpaperOverlay = nil end
   local modOptions = {}
   local headlineQueue = {}
   local forcedApps = {}
+  local customTrails = {}
+  local customToys = {}
+
   
   local origMascotScan = nil
+  local chromePatched = false
   local isReady = false
   local titlePatched = false
   local origCreditsParse = nil
+  local trailPatched = false
+  local toysPatched = false
+
 
   if not StringStore._modPatched then
     StringStore._modPatched = true
@@ -45,10 +54,14 @@ if not ok_wo then WallpaperOverlay = nil end
     function StringStore:bilingual(key, ...)
       if modBilingual[key] then
         local entry = modBilingual[key]
-        return entry.jp, entry.en
+        if self.lang == "jp" or self.bilingualMode then
+          return entry.jp, entry.en
+        end
+        return nil, entry.en
       end
       return origBi(self, key, ...)
     end
+
   
 
   local origActivate = PauseMenu.activate
@@ -111,6 +124,104 @@ if not ok_wo then WallpaperOverlay = nil end
     end
   end
    
+local function ensureTrailPatched()
+  if trailPatched then return end
+  trailPatched = true
+  local Trail = require("src.ui.toys.trail")
+  local origDraw = Trail.draw
+  function Trail:draw(...)
+    local fn = customTrails[self.shape]
+    if not fn then return origDraw(self, ...) end
+    for i = 1, #self.p do
+      local q = self.p[i]
+      if q.alive then
+        local k = 1 - q.age / q.life
+        local col = self.colors[(q.ci - 1) % #self.colors + 1]
+        local r = q.size * (0.4 + 0.6 * k)
+        Theme.set(col, k)
+        fn(q.x, q.y, r, q.rot, col, k)
+      end
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+  end
+end
+
+  local function ensureChromePatched()
+    if chromePatched then return end
+    chromePatched = true
+    local Chrome = require("src.ui.chrome")
+        local Window = require("src.ui.window")
+    local origContentRect = Window.contentRect
+    function Window:contentRect(...)
+      if not self:framed() then return origContentRect(self, ...) end
+      local b = math.max(1, Chrome.style and Chrome.style.border or 1)
+      return self.x + b, self.y + self.titlebarH, self.w - b * 2, self.h - self.titlebarH - b
+    end
+
+
+    local lg = love.graphics
+
+    local function drawCustomStripe(stripe, x, y, w, h, alpha)
+      if type(stripe) == "table" and #stripe > 0 then
+        local sw = w / #stripe
+        for i, col in ipairs(stripe) do
+          local c = type(col) == "string" and Theme.hex(col) or col
+          lg.setColor(c[1], c[2], c[3], (c[4] or 1) * (alpha or 1))
+          lg.rectangle("fill", x + (i - 1) * sw, y, sw + 1, h)
+        end
+        lg.setColor(1, 1, 1, 1)
+        return true
+      end
+      local fn = customStripes[stripe]
+      if fn then
+        fn(x, y, w, h, alpha or 1)
+        lg.setColor(1, 1, 1, 1)
+        return true
+      end
+      return false
+    end
+
+    local origWindowFrame = Chrome.windowFrame
+    function Chrome.windowFrame(win, ...)
+      origWindowFrame(win, ...)
+      local st = Chrome.style
+      local b = st and st.border or 1
+      if b > 1 then
+        Theme.set(win.focused and Theme.color.shellEdgeHi or Theme.color.shellEdge)
+        Chrome.lineTop(win.x, win.y, win.w, win.h, st.radius or 0, b)
+        lg.setColor(1, 1, 1, 1)
+      end
+      if st and st.stripe and st.stripe ~= "rainbow" and st.stripe ~= "hazard" and st.stripe ~= "rule" then
+        local tx, ty, tw, tht = win.x + b, win.y + b, win.w - b * 2, win.titlebarH - b
+        drawCustomStripe(st.stripe, tx, ty + tht - 3, tw, 3, win.focused and 1 or 0.55)
+      end
+    end
+
+
+        local origTaskbarFace = Chrome.taskbarFace
+    function Chrome.taskbarFace(x, y, w, h, ...)
+      origTaskbarFace(x, y, w, h, ...)
+      local st = Chrome.style
+      if not (st and st.stripe and st.taskbarStripe ~= false) then return end
+      if st.stripe == "rule" then
+        Theme.set(Theme.color.shellEdgeHi, 0.9)
+        lg.rectangle("fill", x, y, w, 2)
+      elseif st.stripe == "hazard" then
+        Theme.set(Theme.color.titlebar)
+        lg.rectangle("fill", x, y, w, 2)
+        lg.setColor(0, 0, 0, 1)
+        for sx = x, x + w, 10 do
+          lg.rectangle("fill", sx, y, 5, 2)
+        end
+        lg.setColor(1, 1, 1, 1)
+      elseif st.stripe ~= "rainbow" then
+        drawCustomStripe(st.stripe, x, y, w, 2, 1)
+      end
+    end
+  end
+
+
+
   local function ensureMascotPatched()
     if origMascotScan then return end
     local WO = WallpaperOverlay
@@ -159,6 +270,49 @@ if not ok_wo then WallpaperOverlay = nil end
         table.insert(rows, row)
       end
       return rows
+    end
+  end
+local function ensureToysPatched()
+    if toysPatched then return end
+    toysPatched = true
+    local Aesthetic = require("src.services.aesthetic")
+
+    local origUpdate = Aesthetic.update
+    function Aesthetic:update(dt, ...)
+      origUpdate(self, dt, ...)
+      local desk = self:desktop()
+      if not desk then return end
+      for _, toy in ipairs(customToys) do
+        if self:on(toy.key) and toy.update then
+          toy.update(dt, self.game, desk)
+        end
+      end
+    end
+
+    local origDrawDesktop = Aesthetic.drawDesktop
+    function Aesthetic:drawDesktop(fonts, ...)
+      origDrawDesktop(self, fonts, ...)
+      local desk = self:desktop()
+      if not desk then return end
+      for _, toy in ipairs(customToys) do
+        if self:on(toy.key) and toy.draw and toy.layer ~= "top" then
+          toy.draw(fonts, self.game, desk)
+          love.graphics.setColor(1, 1, 1, 1)
+        end
+      end
+    end
+
+    local origDrawTop = Aesthetic.drawTop
+    function Aesthetic:drawTop(fonts, ...)
+      origDrawTop(self, fonts, ...)
+      local desk = self:desktop()
+      if not desk then return end
+      for _, toy in ipairs(customToys) do
+        if self:on(toy.key) and toy.draw and toy.layer == "top" then
+          toy.draw(fonts, self.game, desk)
+          love.graphics.setColor(1, 1, 1, 1)
+        end
+      end
     end
   end
 
@@ -658,6 +812,66 @@ end,
       return false
     end,
 
+    registerStripe = function(self, id, drawFn)
+    assert(type(id) == "string" and type(drawFn) == "function", "registerStripe(id, drawFn) invalid args")
+    ensureChromePatched()
+    customStripes[id] = drawFn
+    return true
+  end,
+      listStripes = function(self)
+      local out = { "rule", "rainbow", "hazard" }
+      for id in pairs(customStripes) do
+        out[#out + 1] = id
+      end
+      return out
+    end,
+
+
+        registerWallpaper = function(self, id, drawFn)
+      assert(type(id) == "string" and type(drawFn) == "function", "registerWallpaper(id, drawFn) invalid args")
+      local Wallpapers = require("src.ui.wallpapers")
+      Wallpapers.painters[id] = function(w, h, workH, t, wp, fonts)
+        drawFn(w, h, workH, t, wp, fonts)
+        love.graphics.setColor(1, 1, 1, 1)
+      end
+      return true
+    end,
+
+    listWallpapers = function(self)
+      local Wallpapers = require("src.ui.wallpapers")
+      local out = {}
+      for k in pairs(Wallpapers.painters) do
+        out[#out + 1] = k
+      end
+      table.sort(out)
+      return out
+    end,
+
+    registerToy = function(self, def)
+    assert(type(def) == "table" and type(def.key) == "string", "registerToy requires def.key")
+    ensureToysPatched()
+    local labelId = "aesthetics.mod_toy." .. def.key
+    local tipId = "aesthetics.mod_toyTip." .. def.key
+    modLabels[labelId] = def.label or def.name or def.key
+    modLabels[tipId] = def.tip or ""
+    if def.default ~= nil and game.aesthetic and game.aesthetic.s and game.aesthetic.s[def.key] == nil then
+      game.aesthetic.s[def.key] = def.default == true
+    end
+    local Aesthetic = require("src.services.aesthetic")
+    table.insert(Aesthetic.TOYS, def.key)
+    local AestheticsApp = require("src.apps.aesthetics.aesthetics")
+    table.insert(AestheticsApp.TOYS, { key = def.key, labelId = labelId, tipId = tipId })
+    table.insert(customToys, def)
+    return true
+  end,
+
+  listToys = function(self)
+    local out = {}
+    local AestheticsApp = require("src.apps.aesthetics.aesthetics")
+    for _, t in ipairs(AestheticsApp.TOYS) do out[#out + 1] = t.key end
+    return out
+  end,
+
     spawnVirusPopup = function(self, adIndex)
       local cur = game.scenes and game.scenes:current()
       local vfx = cur and (cur.virusFx or cur.virus)
@@ -1114,6 +1328,19 @@ end,
   end
 end,
 
+  registerTrail = function(self, id, drawFn)
+    assert(type(id) == "string" and type(drawFn) == "function", "registerTrail(id, drawFn) invalid args")
+    ensureTrailPatched()
+    customTrails[id] = drawFn
+    return true
+  end,
+
+  listTrails = function(self)
+    local out = { "sparkle", "bubble", "pixel", "heart", "star" }
+    for id in pairs(customTrails) do out[#out + 1] = id end
+    return out
+  end,
+
 
     listTerminalCommands = function(self)
       local out = {}
@@ -1242,9 +1469,14 @@ end,
       row.palette = row.palette or {}
       row.chrome = row.chrome or { radius = 0, border = 1, buttons = "glyph", titleAlign = "left" }
       row.wallpaper = row.wallpaper or { kind = "grid", base = "#0A2429" }
+      row.wallpaper.base = row.wallpaper.base or "#0A2429"
       row.cursor = row.cursor or "arrow"
       row.trail = row.trail or "sparkle"
       row.trailColors = row.trailColors or { "#E8C170", "#F4ECD8", "#9BE8C9" }
+      if row.chrome and (row.chrome.stripe or (row.chrome.border or 1) > 1) then
+        ensureChromePatched()
+      end
+
 
       -- Register display name & description in StringStore
       if row.name then modLabels[row.nameId] = row.name end
@@ -1275,8 +1507,17 @@ end,
       for j, h in ipairs(row.trailColors) do cols[j] = Theme.hex(h) end
       row.trailRGB = cols
 
-      table.insert(Aesthetics.list, row)
+      local existing = Aesthetics.byId[row.id]
+      if existing then
+        row.index = existing.index
+        Aesthetics.list[existing.index] = row
+      else
+        row.index = #Aesthetics.list + 1
+        table.insert(Aesthetics.list, row)
+      end
       Aesthetics.byId[row.id] = row
+
+
     end,
 
   }

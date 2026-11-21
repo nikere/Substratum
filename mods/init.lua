@@ -163,9 +163,20 @@ function M.loadMods(game)
             }
             table.insert(M.discovered, record)
 
-            if isDisabled then
+                        if isDisabled then
+                local chunk = love.filesystem.load(modEntry)
+                if chunk then
+                    local ok, meta = pcall(chunk)
+                    if ok and type(meta) == "table" then
+                        record.name = meta.name or folder
+                        record.version = meta.version
+                        record.author = meta.author
+                        record.desc = meta.desc
+                    end
+                end
                 print("[Substratum] Skipped (disabled): " .. folder)
             else
+
                 local chunk, loadErr = love.filesystem.load(modEntry)
                 if chunk then
                     local ok, mod = pcall(chunk)

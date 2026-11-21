@@ -54,6 +54,20 @@ function M:init(game)
         return res
       end
     end
+        local modsWithAuthors = {}
+    for _, m in ipairs(g.mods.loaded) do
+      if not m._core then
+        modsWithAuthors[#modsWithAuthors + 1] = m
+      end
+    end
+    if #modsWithAuthors > 0 and g.mods.addCreditRow then
+      g.mods:addCreditRow("gap")
+      g.mods:addCreditRow("head", "USER MODS")
+      for _, m in ipairs(modsWithAuthors) do
+        local line = (m.name or m._folder) .. (m.author and (" — " .. m.author) or "")
+        g.mods:addCreditRow("text", line)
+      end
+    end
   end)
 
   local oldKeyPressed = game.keypressed
@@ -246,49 +260,57 @@ function M:init(game)
     lg.print(string.format("MODS (%d/%d ACTIVE — CLICK TO TOGGLE)", #game.mods.loaded, #list), x + 16, drawY)
     drawY = drawY + font:getHeight() + 8
 
-    for _, mod in ipairs(list) do
-      local rowH = font:getHeight() + 6
-      local rowX, rowW = x + 16, w - 32
-      local inView = (drawY + rowH >= listTop) and (drawY <= listTop + listH)
-      local hovered = inView and Rect.contains(rowX, drawY, rowW, rowH, mx, my)
+       local hoveredMod = nil
+ for _, mod in ipairs(list) do
+   local rowX, rowW = x + 16, w - 32
+   local lineH = font:getHeight()
+   local rowH = lineH + 6
+   if mod._error then rowH = rowH + lineH + 2 end
 
-      if not mod._core then
-        if hovered then hot = true end
-        table.insert(rowHitboxes, { x = rowX, y = drawY, w = rowW, h = rowH, folder = mod._folder })
-      end
+   local inView = (drawY + rowH >= listTop) and (drawY <= listTop + listH)
+   local hovered = inView and Rect.contains(rowX, drawY, rowW, rowH, mx, my)
+   if hovered then hoveredMod = mod end
 
-      if hovered and not mod._core then
-        Theme.set(c.fieldLight, 0.7)
-        lg.rectangle("fill", rowX, drawY, rowW, rowH)
-      end
+   if not mod._core then
+     if hovered then hot = true end
+     table.insert(rowHitboxes, { x = rowX, y = drawY, w = rowW, h = rowH, folder = mod._folder })
+   end
 
-      local stateTag = mod._core and "[*]" or (mod._enabled and "[✓]" or "[ ]")
-      local srcTag = mod._external and "USER" or "BUILT-IN"
-      local title = string.format("%s  %s %s (%s • %s)",
-        stateTag,
-        mod.name or mod._folder,
-        mod.version and ("v" .. mod.version) or "",
-        mod._folder,
-        srcTag)
+   if hovered then
+     Theme.set(c.fieldLight, 0.7)
+     lg.rectangle("fill", rowX, drawY, rowW, rowH)
+   end
 
-      if mod._error then
-        Theme.set(c.bad, 1)
-        lg.print(title .. " [ERROR]", rowX + 6, drawY + 3)
-        drawY = drawY + rowH + 2
-        lg.print("       " .. mod._error, rowX + 6, drawY)
-        drawY = drawY + font:getHeight() + 4
-      else
-        if mod._core then
-          Theme.set(c.amber, 1)
-        elseif mod._enabled then
-          Theme.set(c.glowGood, 1)
-        else
-          Theme.set(c.creamDim, 0.55)
-        end
-        lg.print(title, rowX + 6, drawY + 3)
-        drawY = drawY + rowH + 2
-      end
-    end
+   local stateTag = mod._core and "[*]" or (mod._enabled and "[✓]" or "[ ]")
+   local srcTag = mod._external and "USER" or "BUILT-IN"
+   local authorTag = mod.author and (" by " .. tostring(mod.author)) or ""
+   local title = string.format("%s  %s %s%s (%s • %s)",
+     stateTag,
+     mod.name or mod._folder,
+     mod.version and ("v" .. mod.version) or "",
+     authorTag,
+     mod._folder,
+     srcTag)
+
+   if mod._error then
+     Theme.set(c.bad, 1)
+     lg.print(title .. " [ERROR]", rowX + 6, drawY + 3)
+     lg.print("       " .. mod._error, rowX + 6, drawY + lineH + 5)
+   else
+     if mod._core then
+       Theme.set(c.amber, 1)
+     elseif mod._enabled then
+       Theme.set(c.glowGood, 1)
+     else
+       Theme.set(c.creamDim, 0.55)
+     end
+     lg.print(title, rowX + 6, drawY + 3)
+   end
+
+   drawY = drawY + rowH + 2
+ end
+
+
 
     -- Overrides Section
     drawY = drawY + 10
@@ -320,6 +342,26 @@ function M:init(game)
     scroll = math.min(scroll, maxScroll)
 
     lg.setScissor()
+     if hoveredMod and hoveredMod.desc and hoveredMod.desc ~= "" then
+   local descStr = tostring(hoveredMod.desc)
+   local tipMaxW = math.min(340, sw - 24)
+   local _, wrapped = font:getWrap(descStr, tipMaxW - 16)
+   local textW = 0
+   for _, line in ipairs(wrapped) do
+     textW = math.max(textW, font:getWidth(line))
+   end
+   local tipW = textW + 16
+   local tipH = (#wrapped * font:getHeight()) + 12
+   local tx = math.min(mx + 14, sw - tipW - 8)
+   local ty = math.min(my + 16, sh - tipH - 8)
+
+   Theme.set(c.fieldDark, 0.98)
+   lg.rectangle("fill", tx, ty, tipW, tipH)
+   Theme.set(c.amber, 1)
+   lg.rectangle("line", tx + 0.5, ty + 0.5, tipW - 1, tipH - 1)
+   Theme.set(c.cream, 1)
+   lg.printf(descStr, tx + 8, ty + 6, tipW - 16, "left")
+ end
     lg.pop()
 
     if hot and Cursor and Cursor.hot then Cursor.hot() end
