@@ -866,6 +866,13 @@ function M:init(game)
         icon = "彩",
         unlock = {always = true}
     }, RiceApp)
+    game.mods:addProcess({
+        key = "ricer",
+        name = "ricer.exe",
+        ring = 2,
+        apps = { "rice_studio" },
+        present = { unlocked = "rice_studio" },
+    })
 
     game.mods:onReady(function()
      local data = loadProfileFile()
