@@ -111,22 +111,43 @@ if not ok_wo then WallpaperOverlay = nil end
     end
   end
    
-local function ensureMascotPatched()
-  if origMascotScan then return end
-  origMascotScan = WallpaperOverlay.scan
-  function WallpaperOverlay.scan(items, dir, ...)
-    local found = origMascotScan(items, dir, ...)
-    local baseN = #found
-    for i, m in ipairs(customMascots) do
-      found[#found + 1] = {
-        n = baseN + i,
-        path = m.path,
-        name = m.name or m.id,
-      }
+  local function ensureMascotPatched()
+    if origMascotScan then return end
+    local WO = WallpaperOverlay
+    if not WO then
+      local ok, mod = pcall(require, "src.ui.wallpaperoverlay")
+      if not ok then ok, mod = pcall(require, "src.ui.wallpaper_overlay") end
+      if ok and mod then WO = mod; WallpaperOverlay = mod end
     end
-    return found
+    if not WO then return end
+
+    origMascotScan = WO.scan
+    function WO.scan(items, dir, ...)
+      local found = origMascotScan(items, dir, ...)
+      local baseN = #found
+      for i, m in ipairs(customMascots) do
+        found[#found + 1] = {
+          n = baseN + i,
+          path = m.path,
+          name = m.name or m.id,
+        }
+      end
+      return found
+    end
+
+    local Aesthetic = require("src.services.aesthetic")
+    local origMascotPath = Aesthetic.mascotPath
+    function Aesthetic:mascotPath(...)
+      local cur = self.s and self.s.mascot
+      for _, m in ipairs(customMascots) do
+        if cur == m.name or cur == m.id or cur == m.path then
+          return m.path
+        end
+      end
+      return origMascotPath(self, ...)
+    end
   end
-end
+
 
    local function ensureCreditsPatched()
     if origCreditsParse then return end
@@ -535,32 +556,48 @@ end,
     
 
      registerMascot = function(self, id, name, path)
-   ensureMascotPatched()
-   for i = #customMascots, 1, -1 do
-     if customMascots[i].id == id then table.remove(customMascots, i) end
-   end
-   table.insert(customMascots, { id = id, name = name or id, path = path })
-   return true
- end,
+      ensureMascotPatched()
+      for i = #customMascots, 1, -1 do
+        if customMascots[i].id == id then table.remove(customMascots, i) end
+      end
+      table.insert(customMascots, { id = id, name = name or id, path = path })
+      return true
+    end,
 
- setMascot = function(self, path, opts)
-   local overlay = game and game.desktop and game.desktop.overlay
-   if not overlay then return false end
-   if path then overlay:setImage(path) end
-   if opts then
-     if opts.blend then overlay:setBlend(opts.blend) end
-     if opts.flip ~= nil then overlay:setFlip(opts.flip) end
-     if opts.x or opts.y or opts.deg or opts.size then
-       overlay:setPlacement(
-         opts.x ~= nil and opts.x or overlay.posX,
-         opts.y ~= nil and opts.y or overlay.posY,
-         opts.deg ~= nil and opts.deg or math.deg(overlay.rot or 0),
-         opts.size ~= nil and opts.size or overlay.size
-       )
-     end
-   end
-   return true
- end,
+    setMascot = function(self, path, opts)
+      ensureMascotPatched()
+      if path then
+        local targetName = path
+        local found = false
+        for _, m in ipairs(customMascots) do
+          if m.path == path or m.id == path or m.name == path then
+            targetName = m.name or m.id
+            found = true
+            break
+          end
+        end
+        if not found then
+          local autoId = "mod_mascot_" .. tostring(path)
+          self:registerMascot(autoId, autoId, path)
+          targetName = autoId
+        end
+        if game and game.aesthetic then
+          game.aesthetic:set({ mascot = targetName })
+        end
+      end
+      if opts and game and game.aesthetic then
+        local patch = {}
+        if opts.blend then patch.blend = opts.blend end
+        if opts.flip ~= nil then patch.flip = opts.flip end
+        if opts.x ~= nil then patch.mascotX = opts.x end
+        if opts.y ~= nil then patch.mascotY = opts.y end
+        if opts.deg ~= nil then patch.mascotRot = opts.deg end
+        if opts.size ~= nil then patch.mascotSize = opts.size end
+        game.aesthetic:set(patch)
+      end
+      return true
+    end,
+
 
     -- VIRUS, POPUPS & GUEST CURSORS
     Virusinfect = function(self)
