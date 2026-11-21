@@ -150,17 +150,18 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
   * **`palette`**: table of `key → "#RRGGBB"` | `{r, g, b[, a]}` (all optional, fall back to `stock`):
     * **Core UI:** `wallpaper`, `fieldDark`, `field`, `fieldLight`, `line`, `lineBright`, `cream`, `creamDim`, `amber`, `amberDim`, `glowGood`, `bad`
     * **Window & Shell:** `titlebar`, `titlebar2`, `titlebarText`, `titlebarBlur`, `titlebarBlur2`, `titlebarTextBlur` *(inactive titlebar colors auto-derived if omitted)*, `shellFace`, `shellFaceHi`, `shellFaceLo`, `shellEdge`, `shellEdgeHi`, `shellLight`, `shellDark`, `shellText`, `shellTextDim`, `shellAccent`, `shellTray`, `iconText`, `iconGlyph`, `iconShadow`
-  * **`chrome`**: table of window styling options:
+  * **`chrome`**: table of window & taskbar styling options:
     * `radius`: integer px (e.g. `0`, `2`, `7`, `8`, `10`)
     * `border`: integer px (`1` or `2`)
     * `gradDir`: `"h"` | `"v"` (titlebar gradient direction)
     * `buttons`: `"glyph"` | `"dots"` | `"boxes"`
     * `titleAlign`: `"left"` | `"center"`
-    * `stripe`: `"rule"` | `"rainbow"` | `"hazard"` *(optional titlebar accent stripe)*
+    * `stripe`: `"rule"` | `"rainbow"` | `"hazard"` | `{ "#RRGGBB", ... }` | custom ID from `registerStripe` *(3 px bar at the bottom of window titlebars; `"rainbow"`, color arrays, and custom stripes also draw a 2 px bar along the top of the taskbar unless `taskbarStripe = false`)*
+    * `taskbarStripe`: boolean *(optional; set `false` to disable custom/array stripes on the taskbar)*
     * `gloss`: boolean *(optional glossy top highlight)*
     * `bevel`: boolean *(optional classic 3D bevel edge)*
     * `tray`: boolean *(system tray styling)*
-  * **`wallpaper`**: table (`kind` + kind-specific hex colors):
+  * **`wallpaper`**: table (`kind` + `base = "#RRGGBB"` used for the Aesthetics card preview + kind-specific colors):
     * `"grid"`: `{ kind = "grid", base = "#RRGGBB" }`
     * `"solid"`: `{ kind = "solid", base = "#RRGGBB", color = "#RRGGBB"[, dither = "#RRGGBB"] }` *(Note: `dither` may cause lag on some Windows OpenGL drivers)*
     * `"sky"`: `{ kind = "sky", base, sky1, sky2, hill, hill2, bubble }`
@@ -171,16 +172,26 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
     * `"lcd"`: `{ kind = "lcd", base, color, ink, dark }`
     * `"phosphor"`: `{ kind = "phosphor", base, color, ink }`
     * `"holo"`: `{ kind = "holo", base, color, blobs = { "#...", ... } }`
-  * **`cursor`**: `"arrow"` | `"pixel"` | `"heart"` | `"cross"` | `"wand"` *(or any custom ID from `registerCursor`; default `"arrow"`)*
-  * **`trail`**: `"sparkle"` | `"bubble"` | `"pixel"` | `"heart"` | `"star"` *(default `"sparkle"`)*
+    * Custom ID from `registerWallpaper`: `{ kind = "my_wallpaper", base = "#RRGGBB", ... }`
+  * **`cursor`**: `"arrow"` | `"pixel"` | `"heart"` | `"cross"` | `"wand"` | custom ID from `registerCursor` *(default `"arrow"`)*
+  * **`trail`**: `"sparkle"` | `"bubble"` | `"pixel"` | `"heart"` | `"star"` | custom ID from `registerTrail` *(default `"sparkle"`)*
   * **`trailColors`**: array of `"#RRGGBB"` strings (e.g. `{ "#E8C170", "#F4ECD8", "#9BE8C9" }`)
-  * **`crt`**: number `0..1` *(optional CRT scanline/curvature intensity, e.g. `1.0`)*
+  * **`crt`**: number `0..1` *(optional CRT scanline/curvature intensity, e.g. `0.85`)*
+* **`removeTheme(id)`**: removes a theme by `id`.
+* **`listThemes()`**: returns array of all registered theme IDs.
+* **`registerStripe(id, drawFn)`**: registers a custom procedural stripe renderer `drawFn(x, y, w, h, alpha)` usable in `chrome.stripe`.
+* **`listStripes()`**: returns array of built-in and custom stripe IDs.
+* **`registerWallpaper(id, drawFn)`**: registers a custom wallpaper renderer `drawFn(w, h, workH, t, wp, fonts)` usable in `wallpaper.kind`.
+* **`listWallpapers()`**: returns sorted array of built-in and custom wallpaper `kind` IDs.
+* **`registerTrail(id, drawFn)`**: registers a custom cursor trail particle renderer `drawFn(x, y, r, rot, col, k)` usable in `row.trail`.
+* **`listTrails()`**: returns array of built-in and custom trail IDs.
+* **`registerToy(def)`**: adds a custom toggleable desktop toy under **Desktop Toys** in the Aesthetics app (`def`: `{ key, label, tip, default = boolean, layer = "desktop"|"top", update = function(dt, game, desktop), draw = function(fonts, game, desktop) }`).
+* **`listToys()`**: returns array of all built-in and custom desktop toy keys.
+* **`registerCursor(id, drawFn)`**: registers a custom cursor renderer `drawFn(x, y, fill, outline)` usable in `row.cursor`.
+* **`registerMascot(id, name, path)`**: adds a custom mascot image to the Aesthetics mascot selector.
+* **`setMascot(path, opts)`**: sets the active desktop mascot image (`path` or registered ID/name) and optional placement `{ blend = "normal"|"overlay", flip = boolean, x = 0..1, y = 0..1, deg = number, size = number }`.
+* **`setStudioLogo(path)`**: replaces the studio splash logo image.
 
-- `removeTheme(id)` / `listThemes()`.
-- `registerCursor(id, drawFn)` — `id`: string; `drawFn(x, y, fill, outline)` numbers/colors, origin at hotspot, scale pre-applied.
-- `registerFlag(lang, drawFn)` — `lang`: string code; `drawFn(x, y, w, h, alpha)` numbers + alpha 0..1.
-- `registerMascot(id, name, path)` — injects a custom mascot image (`path` relative to game/save root, e.g. `"mods/mymod/mascot.png"`) into the **Aesthetics** app selector without requiring `animegirlN.png` naming.
-- `setMascot(path[, opts])` — immediately sets the active desktop mascot image. Optional `opts`: `{ blend?: "overlay" | "normal", flip?: boolean, x?: number 0..1, y?: number 0..1, deg?: number, size?: number }`.
 
 ## 11. Audio
 
