@@ -4,6 +4,7 @@
 > **Zero Copyrighted Game Assets:** This repository contains only original loader/SDK code and minimal unified diff patches. You must own a legitimate copy of *Apotheosis Engine* on Steam to build and run Substratum.
 
 ## Quick Start
+> **Standalone Builders:** You do not need to download the entire repository, you only need `builder.sh` (Linux / macOS) or `builder.ps1` / `builder.bat` (Windows) placed next to `apotheosisEngine.exe`.
 
 ### Windows (Desktop or Android `.love`)
 
@@ -29,7 +30,26 @@
 has been tested on: custom Linux
 
 ### macOS
-* **macOS (`builder.sh`):** Experimental / untested (`./builder.sh desktop` packages `Substratum.app` with `Substratum.love` inside `Contents/Resources/`).
+* **Build (`builder.sh`):**
+Copy `apotheosisEngine.exe` (from your Windows/Steam install) into the same folder as `builder.sh`.
+Open **Terminal** in that folder and run:
+ ```bash
+ chmod +x builder.sh
+./builder.sh desktop
+ ```
+This downloads LÖVE 11.5 and bundles `out/Substratum/Substratum.app` with `Substratum.love` inside `Contents/Resources/`.
+Copy `out/Substratum/Substratum.app` into `/Applications` (or run it directly from `out/Substratum/`):
+ ```bash
+ cp -R out/Substratum/Substratum.app /Applications/
+```
+Double-click `Substratum.app` or launch from Terminal:
+```bash
+open /Applications/Substratum.app
+ ```
+*Note:* If macOS blocks the unnotarized app on first launch, right-click `Substratum.app` → **Open**, or run `xattr -cr /Applications/Substratum.app`.
+* **Mods directory:** `~/Library/Application Support/apot01/mods`
+
+*Tested on: Hackintosh VM (macOS 12 Monterey)*
 
 ---
 
