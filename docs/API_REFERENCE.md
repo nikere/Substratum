@@ -54,7 +54,7 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 - `restart()` — none.
 - `toggleMod(folder)` — `folder`: string folder name → new enabled boolean; `false` if `_core`; persists; **full effect after restart**.
 - `openFolder([dir])` — `dir`: string path (Android; default `"/sdcard/apotheosis/mods"`). Desktop: ignores arg, opens save dir.
-- `version` / `api` — integer. `loaded` / `discovered` / `disabled` / `overrides` — tables.
+- `version` / `api` — string. `loaded` / `discovered` / `disabled` / `overrides` — tables.
 - `ui.X` — lazy module: `Widgets | Theme | Cursor | Rect | Format | MatrixRain | Ascension | Kit3D`.
 
 ## 4. Terminal & logbook
@@ -152,7 +152,7 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
     * **Window & Shell:** `titlebar`, `titlebar2`, `titlebarText`, `titlebarBlur`, `titlebarBlur2`, `titlebarTextBlur` *(inactive titlebar colors auto-derived if omitted)*, `shellFace`, `shellFaceHi`, `shellFaceLo`, `shellEdge`, `shellEdgeHi`, `shellLight`, `shellDark`, `shellText`, `shellTextDim`, `shellAccent`, `shellTray`, `iconText`, `iconGlyph`, `iconShadow`
   * **`chrome`**: table of window & taskbar styling options:
     * `radius`: integer px (e.g. `0`, `2`, `7`, `8`, `10`)
-    * `border`: integer px (`1` or `2`)
+    * `border`: integer px (e.g. 1, 2, 4) (can be more but unusable)
     * `gradDir`: `"h"` | `"v"` (titlebar gradient direction)
     * `buttons`: `"glyph"` | `"dots"` | `"boxes"`
     * `titleAlign`: `"left"` | `"center"`
@@ -190,7 +190,6 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 * **`registerCursor(id, drawFn)`**: registers a custom cursor renderer `drawFn(x, y, fill, outline)` usable in `row.cursor`.
 * **`registerMascot(id, name, path)`**: adds a custom mascot image to the Aesthetics mascot selector.
 * **`setMascot(path, opts)`**: sets the active desktop mascot image (`path` or registered ID/name) and optional placement `{ blend = "normal"|"overlay", flip = boolean, x = 0..1, y = 0..1, deg = number, size = number }`.
-* **`setStudioLogo(path)`**: replaces the studio splash logo image.
 
 
 ## 11. Audio
@@ -237,9 +236,10 @@ Already-loaded modules refused (Android) with a warning.
 
 ## 17. Worked examples
 
-See repo `examples/` samples: *Void Singularity* (theme + `onReady` unlock),
+See repo `examples/` samples: *Void Singularity* (custom stripe, wallpaper, trail, cursor, toy + theme),
 *Quantum Clicker* (material + app + process + secret command + save persistence),
 *modview* (core GUI: input/draw chains — **always call the wrapped original**).
+*ricer* (custom app with sliders, live RGB palette editor, and persistent save profiles).
 
 ## 18. Downsides
 
