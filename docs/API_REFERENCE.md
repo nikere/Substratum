@@ -143,20 +143,39 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 - `playBoot([mode])` — `mode`: string|nil (default `"reboot"`; other modes per boot scene).
 - `addBootModule(name)` / `removeBootModule(name)` / `listBootModules()` — string / → array of strings.
 
-## 10. Cosmetics
+### 10. Cosmetics
 
-- `addTheme(row)` — `row`: table
-  - `id`,`name`,`tip`: strings.
-  - `palette`: table of key → `"#RRGGBB"` | `{r,g,b[,a]}`; keys (all optional, fall back to stock):
-    `wallpaper fieldDark field fieldLight line lineBright cream creamDim amber amberDim
-    glowGood bad titlebar titlebar2 titlebarText shellFace shellFaceHi shellFaceLo shellEdge
-    shellEdgeHi shellText shellAccent shellTray iconText iconGlyph` (+ stock extras e.g. `signal`, `arcade`).
-    Inactive titlebar colors auto-derived when omitted.
-  - `chrome`: `{radius=integer px, border=integer px, gradDir="h"|"v", buttons="glyph"|"text", titleAlign="left"|"center", tray=boolean}`.
-  - `wallpaper`: `{kind="grid"|"hex", base="#RRGGBB"[, color, ink]}`.
-  - `cursor`: string style id (vanilla + `registerCursor` ids; default `"arrow"`).
-  - `trail`: string trail id (default `"sparkle"`); `trailColors`: array of `"#RRGGBB"`.
-  - `crt`: **number 0..1**.
+* **`addTheme(row)`** — `row`: table
+  * **`id`, `name`, `tip`**: strings (`id` is unique slug; `name` & `tip` are displayed in the Aesthetics app).
+  * **`palette`**: table of `key → "#RRGGBB"` | `{r, g, b[, a]}` (all optional, fall back to `stock`):
+    * **Core UI:** `wallpaper`, `fieldDark`, `field`, `fieldLight`, `line`, `lineBright`, `cream`, `creamDim`, `amber`, `amberDim`, `glowGood`, `bad`
+    * **Window & Shell:** `titlebar`, `titlebar2`, `titlebarText`, `titlebarBlur`, `titlebarBlur2`, `titlebarTextBlur` *(inactive titlebar colors auto-derived if omitted)*, `shellFace`, `shellFaceHi`, `shellFaceLo`, `shellEdge`, `shellEdgeHi`, `shellLight`, `shellDark`, `shellText`, `shellTextDim`, `shellAccent`, `shellTray`, `iconText`, `iconGlyph`, `iconShadow`
+  * **`chrome`**: table of window styling options:
+    * `radius`: integer px (e.g. `0`, `2`, `7`, `8`, `10`)
+    * `border`: integer px (`1` or `2`)
+    * `gradDir`: `"h"` | `"v"` (titlebar gradient direction)
+    * `buttons`: `"glyph"` | `"dots"` | `"boxes"`
+    * `titleAlign`: `"left"` | `"center"`
+    * `stripe`: `"rule"` | `"rainbow"` | `"hazard"` *(optional titlebar accent stripe)*
+    * `gloss`: boolean *(optional glossy top highlight)*
+    * `bevel`: boolean *(optional classic 3D bevel edge)*
+    * `tray`: boolean *(system tray styling)*
+  * **`wallpaper`**: table (`kind` + kind-specific hex colors):
+    * `"grid"`: `{ kind = "grid", base = "#RRGGBB" }`
+    * `"solid"`: `{ kind = "solid", base = "#RRGGBB", color = "#RRGGBB"[, dither = "#RRGGBB"] }` *(Note: `dither` may cause lag on some Windows OpenGL drivers)*
+    * `"sky"`: `{ kind = "sky", base, sky1, sky2, hill, hill2, bubble }`
+    * `"skyline"`: `{ kind = "skyline", base, top, mid, horizon, city, lit }`
+    * `"dots"`: `{ kind = "dots", base, color, dots = { "#...", ... } }`
+    * `"hex"`: `{ kind = "hex", base, color, ink }`
+    * `"sunset"`: `{ kind = "sunset", base, top, horizon, sun1, sun2, floor, grid }`
+    * `"lcd"`: `{ kind = "lcd", base, color, ink, dark }`
+    * `"phosphor"`: `{ kind = "phosphor", base, color, ink }`
+    * `"holo"`: `{ kind = "holo", base, color, blobs = { "#...", ... } }`
+  * **`cursor`**: `"arrow"` | `"pixel"` | `"heart"` | `"cross"` | `"wand"` *(or any custom ID from `registerCursor`; default `"arrow"`)*
+  * **`trail`**: `"sparkle"` | `"bubble"` | `"pixel"` | `"heart"` | `"star"` *(default `"sparkle"`)*
+  * **`trailColors`**: array of `"#RRGGBB"` strings (e.g. `{ "#E8C170", "#F4ECD8", "#9BE8C9" }`)
+  * **`crt`**: number `0..1` *(optional CRT scanline/curvature intensity, e.g. `1.0`)*
+
 - `removeTheme(id)` / `listThemes()`.
 - `registerCursor(id, drawFn)` — `id`: string; `drawFn(x, y, fill, outline)` numbers/colors, origin at hotspot, scale pre-applied.
 - `registerFlag(lang, drawFn)` — `lang`: string code; `drawFn(x, y, w, h, alpha)` numbers + alpha 0..1.
