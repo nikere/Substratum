@@ -26,7 +26,6 @@ diff --git a/main.lua b/main.lua
  
    game.noScale = smoke or shots or gallery or store or demoShots or clips or shorts or trailer
 +  print("[SUBSTRATUM] BEFORE game:load() and lets play fair")
-+  game.noNews = true
 +  ModLoader.loadMods(game)
    game:load()
    if clips then
