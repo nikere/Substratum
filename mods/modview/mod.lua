@@ -69,7 +69,76 @@ function M:init(game)
       end
     end
   end)
-
+    local dropStatus = nil
+  local function copyTre(srcVirtual, dstVirtual)
+    local info = love.filesystem.getInfo(srcVirtual)
+    if not info then return end
+    if info.type == "directory" then
+      love.filesystem.createDirectory(dstVirtual)
+      for _, item in ipairs(love.filesystem.getDirectoryItems(srcVirtual)) do
+        copyTre(srcVirtual .. "/" .. item, dstVirtual .. "/" .. item)
+      end
+    elseif info.type == "file" then
+      local data = love.filesystem.read(srcVirtual)
+      if data then love.filesystem.write(dstVirtual, data) end
+    end
+  end
+  local function removeTree(dstVirtual) local info = love.filesystem.getInfo(dstVirtual)
+    if not info then return end
+    if info.type == "directory" then
+      for _, item in ipairs(love.filesystem.getDirectoryItems(dstVirtual)) do removeTree(dstVirtual .. "/" .. item)
+      end
+    end love.filesystem.remove(dstVirtual)
+  end
+  local function installMountedMod(mountRoot, fallbackName)
+    local srcDir, folderName = nil, nil
+    if love.filesystem.getInfo(mountRoot .. "/mod.lua") then
+      srcDir = mountRoot
+      folderName = fallbackName:gsub("[^%w_%-]", "_")
+    else
+      for _, item in ipairs(love.filesystem.getDirectoryItems(mountRoot)) do
+        if love.filesystem.getInfo(mountRoot .. "/" .. item .. "/mod.lua") then
+          srcDir = mountRoot .. "/" .. item
+          folderName = item
+          break
+        end
+      end
+    end
+    if not srcDir or not folderName or folderName == "" or folderName == "modview" then
+      return nil
+    end
+    love.filesystem.createDirectory("mods")
+    local dstDir = "mods/" .. folderName
+    removeTree(dstDir)
+    copyTre(srcDir, dstDir)
+    return folderName
+  end
+  local oldFileDropped = love.filedropped
+    function love.filedropped(file)
+    if not open or isReleased() then
+      if oldFileDropped then return oldFileDropped(file) end
+      return
+    end
+    local rawName = (file:getFilename() or ""):gsub("\\", "/")
+    local baseName = rawName:match("([^/]+)$") or ""
+    if baseName:lower():match("%.zip$") or baseName:lower():match("%.love$") then
+      local mountPoint = "_substratum_drop"
+      if love.filesystem.mount(file, mountPoint) then
+        local stem = baseName:gsub("%.[^%.]+$", "")
+        local installed = installMountedMod(mountPoint, stem)
+        love.filesystem.unmount(file:getFilename())
+        pcall(function() file:close() end)
+        if installed then
+          open = true
+          dirty = true
+          dropStatus = "INSTALLED: " .. installed .. " (CLICK APPLY & RESTART)"
+          if game.audio then game.audio:play("complete") end
+          return
+        end
+      end
+    end
+    if oldFileDropped then return oldFileDropped(file) end
+  end
   local oldKeyPressed = game.keypressed
   function game:keypressed(key, scancode, isrepeat)
     if isReleased() then
