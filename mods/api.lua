@@ -1,6 +1,7 @@
 -- god forgive me if someone will read this
 local Api = {}
-function Api.create(game, loaderState)
+function Api.create(game, loaderState, getCleanState)
+  local checkClean = getCleanState or function() return false, "unverified_caller" end
   local saveDir = love.filesystem.getSaveDirectory()
   local StringStore = require("src.services.strings")
   local PauseMenu = require("src.ui.pausemenu")
@@ -30,15 +31,104 @@ if not ok_wo then WallpaperOverlay = nil end
   local forcedApps = {}
   local customTrails = {}
   local customToys = {}
+  local sceneHandlers = {}
+  local saveCallbacks, loadCallbacks = {}, {}
+  local slotCache, globalCache = {}, nil
 
   
   local origMascotScan = nil
+  local gameLogoPath, logoPatched = nil, false
   local chromePatched = false
   local isReady = false
   local titlePatched = false
   local origCreditsParse = nil
   local trailPatched = false
   local toysPatched = false
+  local scenesPatched = false
+  do
+    local seen = {}
+    local guardedMeta, guardedSteam, guardedBoard = false, false, false
+    local installedSubmit = nil
+
+    local function note(kind, id)
+      local k = kind .. ":" .. tostring(id)
+      if seen[k] then return end
+      seen[k] = true
+      local _, why = checkClean()
+      print(("[Substratum] guard: %s '%s' refused (%s)"):format(
+        kind, tostring(id), tostring(why or "tainted")
+      ))
+    end
+
+    local function applyGuards()
+      local okM, Meta = pcall(require, "src.services.meta")
+      if okM and Meta and Meta.submitScore and Meta.submitScore ~= installedSubmit then
+        if guardedMeta then
+          print("[Substratum] guard: score funnel replaced post-boot - re-arming")
+        end
+        guardedMeta = true
+        local origSubmit = Meta.submitScore
+        function Meta:submitScore(board, score, length)
+          if type(board) ~= "string" or not board:match("^[%w%.%-_]+$") or #board > 40 then return nil end
+          if type(score) ~= "number" or score ~= score or score == math.huge or score <= 0 then return nil end
+          local steam = self.game and self.game.steam
+          local clean = checkClean()
+          if steam and steam.available and not clean then
+            note("board", board)
+            return self:record(board, score, length)
+          end
+          return origSubmit(self, board, score, length)
+        end
+        installedSubmit = Meta.submitScore
+        print("[Substratum] guard: competitive funnel on")
+      end
+      local okS, Svc = pcall(require, "src.services.steam")
+      if okS and Svc and not guardedSteam then
+          guardedSteam = true
+      local origUnlock, origSweep, origSteamSubmit, origRefresh =
+          Svc.unlockAchievement, Svc.sweep, Svc.submitScore, Svc.refreshBoard
+        function Svc:unlockAchievement(id)
+          local clean = checkClean()
+          if not clean then note("achievement", id) return end
+          return origUnlock(self, id)
+        end
+        function Svc:sweep()
+          local clean = checkClean()
+          if not clean then return end
+          return origSweep(self)
+        end
+        if origSteamSubmit then
+          function Svc:submitScore(board, score)
+            local clean = checkClean()
+            if not clean then note("board", board) return false end
+            return origSteamSubmit(self, board, score)
+          end
+        end
+        if origRefresh then
+          function Svc:refreshBoard(board, force)
+            local clean = checkClean()
+            if not clean then return false end
+            return origRefresh(self, board, force)
+          end
+        end
+
+end
+
+
+      local okB, SB = pcall(require, "src.ui.scoreboard")
+      if okB and SB and not guardedBoard then
+        guardedBoard = true
+        local origView = SB.view
+        function SB.view(g, board)
+          local clean = checkClean()
+          if not clean then return nil end
+          return origView(g, board)
+        end
+      end
+    end
+    applyGuards()
+    table.insert(readyQueue, applyGuards)
+  end
 
 
   if not StringStore._modPatched then
@@ -123,7 +213,69 @@ if not ok_wo then WallpaperOverlay = nil end
       end
     end
   end
-   
+
+  local function balanceParts(path)
+  local parts = {}
+  for seg in path:gmatch("[^%.]+") do parts[#parts + 1] = seg end
+  return parts
+end
+local function ensureScenesPatched()
+  if scenesPatched then return end
+  scenesPatched = true
+
+  local function fireSceneEnter(scene, prev)
+    local name = scene and scene.name
+    if not name or not sceneHandlers[name] then return end
+    for _, fn in ipairs(sceneHandlers[name]) do
+      local ok, err = pcall(fn, game, scene, prev)
+      if not ok then print("[ModAPI] onSceneEnter error: " .. tostring(err)) end
+    end
+  end
+
+  local function wrapEnter(fn)
+    return function(self, prev, ...)
+      local res = fn(self, prev, ...)
+      fireSceneEnter(self, prev)
+      return res
+    end
+  end
+
+  local SceneMod = require("src.core.scene")
+  local BaseScene = SceneMod.Scene
+  BaseScene.enter = wrapEnter(BaseScene.enter or function() end)
+
+  for _, file in ipairs(love.filesystem.getDirectoryItems("src/scenes") or {}) do
+    local stem = file:match("^(.+)%.lua$")
+    if stem then
+      local ok, Cls = pcall(require, "src.scenes." .. stem)
+      local ownEnter = ok and type(Cls) == "table" and rawget(Cls, "enter")
+      if type(ownEnter) == "function" then
+        rawset(Cls, "enter", wrapEnter(ownEnter))
+      end
+    end
+  end
+end
+
+
+local function ensureLogoPatched()
+  if logoPatched then return end
+  logoPatched = true
+  for _, m in ipairs({ "src.scenes.title", "src.scenes.boot",
+                       "src.scenes.credits", "src.scenes.ending" }) do
+    local ok, Scene = pcall(require, m)
+    if ok and Scene and Scene.new then
+      local origNew = Scene.new
+      Scene.new = function(self, g, ...)
+        local r = origNew(self, g, ...)
+        if gameLogoPath then
+          local ok2, img = pcall(love.graphics.newImage, gameLogoPath)
+          if ok2 and img then img:setFilter("linear", "linear"); self.logo = img end
+        end
+        return r
+      end
+    end
+  end
+end
 local function ensureTrailPatched()
   if trailPatched then return end
   trailPatched = true
@@ -483,7 +635,7 @@ local function ensureToysPatched()
       local secrets = require("src.data.terminal_secrets")
       table.insert(secrets, def)
       
-      -- FIX 1: Prevent double-insertion race condition
+
       if package.loaded["src.data.terminal"] then
         table.insert(package.loaded["src.data.terminal"].commands, def)
       end
@@ -536,6 +688,58 @@ local function ensureToysPatched()
         end
     end,
     -- APPS & MANIFEST
+        registerMinigame = function(self, id, autoFound)
+      local Meta = require("src.services.meta")
+      for _, m in ipairs(Meta.MINIGAMES) do if m == id then return false end end
+
+      local stdPath = "src.apps." .. id .. "." .. id
+      if not package.preload[stdPath] and not package.loaded[stdPath] then
+        package.preload[stdPath] = function()
+          local modPath = "mods.virtual_app_" .. id
+          local def = game.apps and game.apps.defs and game.apps.defs[id]
+          if not def then
+            for _, d in ipairs(require("src.data.apps")) do
+              if d.id == id then def = d; break end
+            end
+          end
+          if def and def.module then modPath = def.module end
+          if package.loaded[modPath] then return package.loaded[modPath] end
+          if package.preload[modPath] then return package.preload[modPath]() end
+          error("Mod minigame module not found for id: " .. tostring(id))
+        end
+      end
+
+      table.insert(Meta.MINIGAMES, id)
+      if autoFound and game.meta and game.meta.markMinigame then
+        game.meta:markMinigame(id)
+      end
+      return true
+    end,
+setNewsEnabled = function(self, on)
+  game.noNews = not on
+  local news = game.news
+  if on and news and not news.started then news:start() end 
+  return not game.noNews
+end,
+setNewsPosts = function(self, rows)   -- { {title=, text=, date=epoch, url=""}, ... }; nil restores
+  onReady(function(g)
+    local news = g.news; if not news then return end
+    if rows == nil and news._modOrig then
+      news.start, news.poll, news.status = news._modOrig.start, news._modOrig.poll, news._modOrig.status
+      news._modOrig = nil; return
+    end
+    if not news._modOrig then
+      news._modOrig = { start = news.start, poll = news.poll, status = news.status }
+      news.start = function() end
+      news.poll  = function() end
+      news.status = function() return #news.items > 0 and "ready" or "none" end
+    end
+    news.items = rows
+    g.noNews = false   
+  end)
+  return true
+end,
+
     registerApp = function(self, def, AppClass)
       assert(def and def.id, "registerApp requires def.id")
       local modPath = "mods.virtual_app_" .. def.id
@@ -573,7 +777,15 @@ local function ensureToysPatched()
     text = text ~= nil and tostring(text) or nil,
   })
 end,
-
+    setGameLogo = function(self, path)
+  ensureLogoPatched(); gameLogoPath = path
+  local cur = game.scenes and game.scenes:current()
+  if cur and cur.logo then
+    local ok, img = pcall(love.graphics.newImage, path)
+    if ok and img then img:setFilter("linear", "linear"); cur.logo = img end
+  end
+  return true
+end,
     setStudioLogo = function(self, path)
       local balance = require("src.data.balance")
       balance.studio.logo = path
@@ -648,6 +860,74 @@ end,
       Flags._modFlags[lang] = drawFn
       return true
     end,
+   onEvent = function(self, name, fn)
+  if not (game.events and game.events.on) then return function() end end
+  return game.events:on(name, fn)     -- returns the unsubscribe closure
+end,
+addAchievement = function(self, def)
+  assert(def and def.id and type(def.check) == "function", "addAchievement needs id + check(game)")
+  local A = require("src.data.achievements")
+  def.name, def.desc = def.name or { en = def.id }, def.desc or { en = "" }
+  for i = #A.list, 1, -1 do if A.list[i].id == def.id then table.remove(A.list, i) end end
+  table.insert(A.list, def)
+  return true
+end,
+  removeAchievement = function(self, id)
+    local A = require("src.data.achievements")
+    for i = #A.list, 1, -1 do
+      if A.list[i].id == id then table.remove(A.list, i) return true end
+    end
+    for i = #(A.planned or {}), 1, -1 do
+      if A.planned[i].id == id then table.remove(A.planned, i) return true end
+    end
+    return false
+  end,
+  onSceneEnter = function(self, name, fn)
+  assert(type(name) == "string" and type(fn) == "function", "onSceneEnter(name, fn) invalid args")
+  ensureScenesPatched()
+  sceneHandlers[name] = sceneHandlers[name] or {}
+  table.insert(sceneHandlers[name], fn)
+  return true
+end,
+
+  currentScene = function(self)
+    local cur = game.scenes and game.scenes:current()
+    return cur and cur.name or nil
+  end,
+listAchievements = function(self) local A = require("src.data.achievements")
+  local out = {}; for _, a in ipairs(A.list) do out[#out+1] = a.id end; return out end,
+isAchievementUnlocked = function(self, id)
+  local A = require("src.data.achievements")
+  for _, a in ipairs(A.list) do
+    if a.id == id then local ok, r = pcall(a.check, game); return (ok and r == true) or false end
+  end
+  return false
+end,
+enablePlannedAchievement = function(self, id)   
+  local A = require("src.data.achievements")
+  for i, a in ipairs(A.planned or {}) do
+    if a.id == id then table.remove(A.planned, i); table.insert(A.list, a); return true end
+  end
+  return false
+end,
+getStat = function(self, k) return game.stats and game.stats:get(k) or 0 end,
+bumpStat = function(self, k, n) if game.stats then game.stats:bump(k, n or 1) end end,
+getUpgradeLevel = function(self, id) return game.upgrades and game.upgrades:level(id) or 0 end,
+isUpgradeMaxed = function(self, id)
+  local up = game.upgrades; if not up then return false end
+  local d = up:def(id); return d ~= nil and d.maxLevel ~= nil and up:level(id) >= d.maxLevel
+end,
+listUpgradeIds = function(self, setId) return game.upgrades and game.upgrades:ids(setId) or {} end,
+isRunCompleted = function(self) return (game.meta and game.meta.completed) or false end,
+markRunCompleted = function(self) if game.meta then game.meta:markCompleted() end end,
+listMinigames = function(self)
+  local Meta = require("src.services.meta")
+  local out = {}; for _, id in ipairs(Meta.MINIGAMES) do out[#out+1] = id end; return out
+end,
+isMinigameFound = function(self, id)
+  return (game.meta and game.meta.foundMinigame and game.meta:foundMinigame(id)) or false
+end,
+markMinigameFound = function(self, id) if game.meta then game.meta:markMinigame(id) end end,
 
  drawAscensionEye = function(self, k, cx, cy, ew, open)
    local Ascension = require("src.ui.ascension")
@@ -681,6 +961,69 @@ end,
       end
       DeadLog._modForceActive = state
       return true
+    end,
+
+    setFlag = function(self, flag, val)
+      if game.unlocks then game.unlocks:setFlag(flag, val == nil and true or val) end
+    end,
+
+    getFlag = function(self, flag)
+      return game.unlocks and (game.unlocks:has(flag) or false) or false
+    end,
+
+    completeApp = function(self, appId)
+      if game.apps then game.apps:markCompleted(appId) end
+    end,
+
+    isAppCompleted = function(self, appId)
+      if not game.apps then return false end
+      for _, id in ipairs(game.apps:completedIds()) do
+        if id == appId then return true end
+      end
+      return false
+    end,
+
+    getCompletedApps = function(self)
+      return game.apps and game.apps:completedIds() or {}
+    end,
+
+    addSentience = function(self, amount)
+      if game.sentience then game.sentience:add(amount) end
+    end,
+
+    getSentience = function(self)
+      return game.sentience and (game.sentience.value or (game.sentience.get and game.sentience:get())) or 0
+    end,
+
+    addResource = function(self, pool, amount)
+      if game.resources then game.resources:add(pool, amount) end
+    end,
+
+    getResource = function(self, pool)
+      return game.resources and (game.resources:get(pool) or 0) or 0
+    end,
+
+    fireLog = function(self, key)
+      if game.logbook then game.logbook:fire(key) end
+    end,
+
+    emitEvent = function(self, name, payload)
+      if game.events then game.events:emit(name, payload) end
+    end,
+
+    shake = function(self, amount)
+      if game.juice then game.juice:shake(amount or 2) end
+    end,
+
+    getSetting = function(self, key)
+      return game.settings and game.settings[key]
+    end,
+
+    setSetting = function(self, key, val)
+      if game.settings then
+        game.settings[key] = val
+        if game.save and game.save.writeSettings then game.save:writeSettings() end
+      end
     end,
 
     setDeadLogStrength = function(self, strength)
@@ -997,7 +1340,25 @@ end,
       end
       return out
     end,
-
+    getBalance = function(self, path)
+  local node = require("src.data.balance")
+  for _, seg in ipairs(balanceParts(path)) do
+    if type(node) ~= "table" then return nil end
+    node = node[seg]
+  end
+  return node
+end,
+setBalance = function(self, path, value)
+  local parts = balanceParts(path)
+  if #parts == 0 then return false end
+  local node = require("src.data.balance")
+  for i = 1, #parts - 1 do
+    if type(node[parts[i]]) ~= "table" then node[parts[i]] = {} end
+    node = node[parts[i]]
+  end
+  node[parts[#parts]] = value
+  return true
+end,
     -- TRANSMISSIONS
     setTransmission = function(self, stage, lines)
       assert(type(stage) == "number" and type(lines) == "table", "setTransmission(stage, lines) invalid args")
@@ -1187,14 +1548,17 @@ end,
       end
     end,
 
-    addPower = function(self, def)
+   addPower = function(self, def)
       local Powers = require("src.data.powers")
       local balance = require("src.data.balance")
       assert(def and def.id, "addPower requires def.id")
 
-      def.index = #Powers.list + 1
-      table.insert(Powers.list, def)
-      Powers.byId[def.id] = def
+      local list = Powers.POWERS or Powers.list
+      local byId = Powers.POWER_BY_ID or Powers.byId
+      def.row = def.row or ("engage.power." .. def.id)
+      def.index = #list + 1
+      table.insert(list, def)
+      byId[def.id] = def
 
       if balance and balance.engage then
         balance.engage.powerCost = balance.engage.powerCost or {}
@@ -1203,6 +1567,7 @@ end,
         balance.engage.powerRequires[def.id] = balance.engage.powerRequires[def.id] or def.requires or {}
       end
     end,
+
 
   addProcess = function(self, def)
    local P = require("src.data.processes")
@@ -1309,10 +1674,12 @@ end,
     end,
 
     listPowers = function(self)
+      local Powers = require("src.data.powers")
       local out = {}
-      for _, p in ipairs(require("src.data.powers").list) do out[#out + 1] = p.id end
+      for _, p in ipairs(Powers.POWERS or Powers.list) do out[#out + 1] = p.id end
       return out
     end,
+
 
     listThemes = function(self)
       local out = {}
@@ -1385,18 +1752,21 @@ removeMaterial = function(self, id)
   end
 end,
 
-removePower = function(self, id)
-  local Powers = require("src.data.powers")
-  local balance = require("src.data.balance")
-  Powers.byId[id] = nil
-  for i = #Powers.list, 1, -1 do
-    if Powers.list[i].id == id then table.remove(Powers.list, i) end
-  end
-  if balance and balance.engage then
-    if balance.engage.powerCost then balance.engage.powerCost[id] = nil end
-    if balance.engage.powerRequires then balance.engage.powerRequires[id] = nil end
-  end
-end,
+    removePower = function(self, id)
+      local Powers = require("src.data.powers")
+      local balance = require("src.data.balance")
+      local list = Powers.POWERS or Powers.list
+      local byId = Powers.POWER_BY_ID or Powers.byId
+      byId[id] = nil
+      for i = #list, 1, -1 do
+        if list[i].id == id then table.remove(list, i) end
+      end
+      if balance and balance.engage then
+        if balance.engage.powerCost then balance.engage.powerCost[id] = nil end
+        if balance.engage.powerRequires then balance.engage.powerRequires[id] = nil end
+      end
+    end,
+
 
     
     -- MUSIC & AUDIO
@@ -1463,6 +1833,9 @@ end,
     -- AESTHETICS
     addTheme = function(self, row)
       local Aesthetics = require("src.data.aesthetics")
+      Aesthetics.list = Aesthetics.list or {}
+      Aesthetics.byId = Aesthetics.byId or {}
+
       row.index = #Aesthetics.list + 1
       row.nameId = row.nameId or ("aesthetics.theme." .. row.id)
       row.tipId = row.tipId or ("aesthetics.tip." .. row.id)
@@ -1516,8 +1889,6 @@ end,
         table.insert(Aesthetics.list, row)
       end
       Aesthetics.byId[row.id] = row
-
-
     end,
 
   }
@@ -1528,7 +1899,13 @@ end,
       Android.apply(game, api, loaderState)
     end
   end
-  return api
-end
+  return setmetatable({}, {
+    __index = api,
+    __newindex = function(_, k)
+      error("[Substratum] Attempt to modify read-only Mod API field: " .. tostring(k), 2)
+    end,
+    __metatable = false
+  })
 
+end
 return Api

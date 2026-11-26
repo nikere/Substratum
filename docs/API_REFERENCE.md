@@ -1,6 +1,6 @@
 # SUBSTRATUM SDK — Unified API Reference
 
-**Tested against:** Apotheosis Engine **1.5** · LÖVE **11.5** · Windows / Linux / macOS / Android
+**Tested against:** Apotheosis Engine **1.6** · LÖVE **11.5** · Windows / Linux / macOS / Android
 **License:** GPL-3.0 · **Requires:** a legitimate Steam copy of the game
 
 One API (`game.mods`) on every platform. Platform differences live in §2 and §15 only.
@@ -56,6 +56,11 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 - `openFolder([dir])` — `dir`: string path (Android; default `"/sdcard/apotheosis/mods"`). Desktop: ignores arg, opens save dir.
 - `version` / `api` — string. `loaded` / `discovered` / `disabled` / `overrides` — tables.
 - `ui.X` — lazy module: `Widgets | Theme | Cursor | Rect | Format | MatrixRain | Ascension | Kit3D`.
+- `onSceneEnter(name, fn)` — `name`: string (`"intro"` | `"title"` | `"boot"` | `"desktop"` | `"arcade"` | `"speedrun"` | `"credits"` | `"ending"` …); `fn(game, scene, prev)` runs right after `scene:enter(prev)` → `true`.
+- `currentScene()` → string active scene `.name` | `nil`.
+- `onEvent(name, fn)` — `game.events:on(name, fn)` → unsubscribe `function()`.
+- `emitEvent(name[, payload])` — `game.events:emit(name, payload)`.
+- `game.mods` is wrapped in a **read-only proxy** (`__newindex` errors; `__metatable = false`).
 
 ## 4. Terminal & logbook
 
@@ -72,9 +77,12 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
   - `kao`: string|nil — portrait/face id (valid ids: see `src/data/logs.lua`); nil = none.
   - `glitch`: **number 0..1** | nil (default nil) — corruption intensity; 0 clean → 1 fully glitched. Same scale as `pushLog` and virus log lines.
 - `pushLog(text[, glitch])` — `text`: string; `glitch`: **number 0..1** (default 0).
+- `fireLog(key)` — triggers `game.logbook:fire(key)`.
+- Secret commands can also pass `hash = require("src.core.passhash").of("word")` instead of `name`.
+
 
 ## 5. Localization
-
+- `registerFlag(lang, drawFn)` — `lang`: string; `drawFn(x, y, w, h, alpha)` → `true` (custom language selector flag).
 - `addString(key, translations)` — `key`: string; `translations`: string | `{en=…, jp=…}`.
   Auto-namespaces used by: pause/title/option/theme/app labels.
 
@@ -97,6 +105,9 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
     - helpers: `localMouse()`, `layout()`, `print/printWrap/printFit`, `textScale()`.
 - `unlockApp(id)` / `unlockLegacyApp(id)` / `removeApp(id)` — `id`: string.
 - `listApps()` → array of strings.
+- `completeApp(appId)` / `isAppCompleted(appId)` → boolean / `getCompletedApps()` → array of strings.
+- `registerMinigame(id[, autoFound])` — `id`: string; `autoFound`: boolean|nil (`true` marks found immediately) → boolean (aliases `src.apps.<id>.<id>` to registered app module).
+- `listMinigames()` → array of strings. `isMinigameFound(id)` → boolean. `markMinigameFound(id)` — marks discovered in `game.meta`.
 
 ## 7. Processes
 
@@ -117,8 +128,18 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
   - `weight`: number (default 10) — drop weight.
   - Creates pool `mat.<id>` (number, starts 0, re-seeded each run) + HUD chip gated `> 0`.
 - `removeMaterial(id)` / `listMaterials()` — string / → array of strings.
-- `addPower(def)` — `def.id`: string (**required**); `def.cost`: number (default 250); `def.requires`: table of ids (default {}).
 - `removePower(id)` / `listPowers()`.
+- `addPower(def)` — `def.id`: string (**required**); `def.row`: string (default `"engage.power." .. def.id`); `def.cost`: number (default 250); `def.requires`: table of ids (default {}).
+- `addAchievement(def)` — `def`: `{id=string, check=function(game)->boolean, name={en=…[, jp=…]}, desc={en=…[, jp=…]}}` (replaces existing `id`) → `true`. *(Evaluated locally; Steam sync blocked while modded.)*
+- `removeAchievement(id)` — string (`list` + `planned`) → boolean. `listAchievements()` → array of strings.
+- `isAchievementUnlocked(id)` — string → boolean (`pcall(a.check, game)`). `enablePlannedAchievement(id)` → boolean.
+- `getStat(key)` → number (default `0`). `bumpStat(key[, n])` — increments by `n` (default `1`).
+- `getUpgradeLevel(id)` → integer (default `0`). `isUpgradeMaxed(id)` → boolean. `listUpgradeIds([setId])` → array of strings.
+- `isRunCompleted()` → boolean. `markRunCompleted()` — marks run completed in `game.meta`.
+- `setFlag(flag[, val])` (`val` default `true`) / `getFlag(flag)` → boolean.
+- `addSentience(amount)` / `getSentience()` → number.
+- `addResource(pool, amount)` / `getResource(pool)` → number.
+- `getBalance(path)` / `setBalance(path, value)` — dot path into `src.data.balance` (e.g. `"boot.duration"`).
 
 ## 9. UI injection
 - `openApp(appId)` — programmatically opens or focuses a registered desktop app window (`appId: string`). Returns the window object or `nil`.
@@ -142,6 +163,11 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 - `triggerCrash([skipBoost])` — `skipBoost`: boolean|nil; true = jump straight into the fault sequence.
 - `playBoot([mode])` — `mode`: string|nil (default `"reboot"`; other modes per boot scene).
 - `addBootModule(name)` / `removeBootModule(name)` / `listBootModules()` — string / → array of strings.
+- `setGameLogo(path)` — `path`: string image path → `true`; replaces `self.logo` on title/boot/credits/ending and live-swaps current scene.
+- `getSetting(key)` / `setSetting(key, val)` — reads/writes `game.settings[key]` and persists settings.
+- `shake([amount])` — `game.juice:shake(amount or 2)`.
+- `setNewsEnabled(on)` — `on`: boolean (`false` sets `game.noNews = true`; `true` starts `game.news`) → boolean active state.
+- `setNewsPosts(rows)` — `rows`: array of `{title=string, text=string, date=epoch, url=string}` | `nil` (restores original `news` methods) → `true`.
 
 ### 10. Cosmetics
 
@@ -248,4 +274,4 @@ See repo `examples/` samples: *Void Singularity* (custom stripe, wallpaper, trai
 - `setGhostCount` is a floor; one global; last call wins.
 - `toggleMod` needs restart for full effect.
 - Mods run **unsandboxed** (`io`, `os`, `ffi`). Trust what you install.
-- Builds set `game.noSteam = true`: leaderboards/cloud untouched by design.
+- **Steam Competitive Guard:** Steamworks stays online for Rich Presence and overlay, while `Meta:submitScore`, `SteamService:submitScore` / `refreshBoard`, `SteamService:unlockAchievement` / `sweep`, and `Scoreboard.view` are refused (local records still save) whenever any mod, override, or loader shadow is active.

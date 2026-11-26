@@ -55,7 +55,8 @@ index d78ec59..6fc2487 100644
 +                print("[SubstratumA] WARNING: Override for '" .. modName ..
 +                          "' ignored (already loaded)")
 +            else
-+                M.overrides[modName] = "preloaded"
++               M.overrides[modName] = "preloaded"
++               taint("override:" .. modName)
 +                package.loaded[modName] = nil
 +                package.preload[modName] = function()
 +                    local chunk, err = loadfile(fullPath)
@@ -127,6 +128,7 @@ index d78ec59..6fc2487 100644
 +                            table.insert(M.loaded, mod)
 +                            print("[SubstratumA] Loaded: " ..
 +                                      (mod.name or folder))
++                            taint("mod:" .. (mod.name or folder))
 +                            if mod.init then
 +                                local initOk, err =
 +                                    pcall(mod.init, mod, game, folder)

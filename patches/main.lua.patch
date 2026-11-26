@@ -1,3 +1,14 @@
+diff --git a/conf.lua b/conf.lua
+--- a/conf.lua
++++ b/conf.lua
+@@ -6,6 +6,7 @@ function love.conf(t)
+   pcall(function() require("src.core.dpiaware").apply() end)
+ 
+   t.identity = "apot01"
++  t.appendidentity = true
+   t.version  = "11.5"
+   t.console  = false
+ 
 diff --git a/main.lua b/main.lua
 --- a/main.lua
 +++ b/main.lua
@@ -10,12 +21,11 @@ diff --git a/main.lua b/main.lua
  local Game = require("src.game")
  local UIScale = require("src.ui.uiscale")
  local game
-@@ -100,6 +102,10 @@ function love.load(args)
+@@ -100,6 +102,9 @@ function love.load(args)
  
  
    game.noScale = smoke or shots or gallery or store or demoShots or clips or shorts or trailer
 +  print("[SUBSTRATUM] BEFORE game:load() and lets play fair")
-+  game.noSteam = true
 +  game.noNews = true
 +  ModLoader.loadMods(game)
    game:load()

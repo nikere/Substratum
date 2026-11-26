@@ -1,4 +1,13 @@
 local M = {}
+local isClean = true
+local whyTainted = nil
+local function taint(reason)
+    if isClean then
+        isClean = false
+        whyTainted = reason
+    end
+end
+local function getCleanState() return isClean, whyTainted end
 M.loaded = {}
 M.discovered = {} -- All mods found (enabled + disabled)
 M.disabled = {} -- { [folder] = true }
@@ -60,6 +69,7 @@ function M.applyOverrides()
                               "' ignored (already loaded)")
                 else
                     M.overrides[modName] = "preloaded"
+                    taint("override:" .. modName)
                     package.loaded[modName] = nil
                     package.preload[modName] = function()
                         local chunk, err = love.filesystem.load(path)
@@ -97,6 +107,12 @@ function M.applyOverrides()
 end
 
 -- Sequence 2: Runs before game:load()
+local srcBase = love.filesystem.getSource()
+if love.filesystem.getRealDirectory("mods/init.lua") ~= srcBase or
+    love.filesystem.getRealDirectory("mods/api.lua") ~= srcBase then
+    taint("shadowed_loader")
+    print("[Substratum] WARNING: loader core shadowed by save directory")
+end
 function M.loadMods(game)
     M.loadConfig()
     local saveDir = love.filesystem.getSaveDirectory()
@@ -134,7 +150,7 @@ function M.loadMods(game)
         return
     end
 
-    game.mods = Api.create(game, M)
+    game.mods = Api.create(game, M, getCleanState)
 
     local modsDir = "mods"
     local dirInfo = love.filesystem.getInfo(modsDir)
@@ -151,19 +167,17 @@ function M.loadMods(game)
             local isDisabled = (M.disabled[folder] == true)
             local isExternal = (love.filesystem.getRealDirectory(modEntry) ==
                                    saveDir)
-
-            -- Record in discovered list even if disabled so GUI can toggle it back on
             local record = {
                 name = folder,
                 _folder = folder,
                 _path = modsDir .. "/" .. folder,
                 _external = isExternal,
                 _enabled = not isDisabled,
-                _core = (folder == "modview")
+                _core = (folder == "modview" and not isExternal)
             }
             table.insert(M.discovered, record)
 
-                        if isDisabled then
+            if isDisabled then
                 local chunk = love.filesystem.load(modEntry)
                 if chunk then
                     local ok, meta = pcall(chunk)
@@ -191,7 +205,7 @@ function M.loadMods(game)
                         M.discovered[#M.discovered] = mod
                         table.insert(M.loaded, mod)
                         print("[Substratum] Loaded: " .. (mod.name or folder))
-
+                        taint("mod:" .. (mod.name or folder))
                         if mod.init then
                             local initOk, err =
                                 pcall(mod.init, mod, game, folder)

@@ -91,7 +91,7 @@ return M
 ## Security & Fair-Play Disclaimer
 
 * **Unsandboxed Lua Execution:** Mods loaded through Substratum run with full LÖVE/Lua privileges (`io`, `os`, `ffi`). Only install mods and overrides from sources you trust.
-* **Steam Protection:** `main.lua.patch` intentionally disables Steamworks (`game.noSteam = true`) so custom mods, cheat packs, or stage-jumpers cannot pollute official Steam leaderboards or corrupt cloud saves.
+* **Steam Competitive Guard:** Substratum keeps Steamworks online for Rich Presence and overlay support, while automatically guarding Steam leaderboards, achievements , and global scoreboards whenever any mod, override, or loader shadow is active (local records still save normally).
 
 ## License
 Substratum is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [`LICENSE`](LICENSE) for details.
