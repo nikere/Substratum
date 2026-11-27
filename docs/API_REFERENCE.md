@@ -138,11 +138,12 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 - `getUpgradeLevel(id)` → integer (default `0`). `isUpgradeMaxed(id)` → boolean. `listUpgradeIds([setId])` → array of strings.
 - `isRunCompleted()` → boolean. `markRunCompleted()` — marks run completed in `game.meta`.
 - `setFlag(flag[, val])` (`val` default `true`) / `getFlag(flag)` → boolean.
-- `addSentience(amount)` / `getSentience()` → number.
+- `addSentience(amount)` → number new value (also triggers game.unlocks:update(0)). `getSentience()` → number.
 - `addResource(pool, amount)` / `getResource(pool)` → number.
 - `getBalance(path)` / `setBalance(path, value)` — dot path into `src.data.balance` (e.g. `"boot.duration"`).
 
 ## 9. UI injection
+
 - `openApp(appId)` — programmatically opens or focuses a registered desktop app window (`appId: string`). Returns the window object or `nil`.
 - `closeApp(appId)` — closes an open app window by `id`. Returns `true` if closed, `false` if not currently open.
 - `focusApp(appId)` — restores (if minimized) and brings an open app window to the front. Returns `true` on success.
@@ -169,7 +170,8 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 - `shake([amount])` — `game.juice:shake(amount or 2)`.
 - `setNewsEnabled(on)` — `on`: boolean (`false` sets `game.noNews = true`; `true` starts `game.news`) → boolean active state.
 - `setNewsPosts(rows)` — `rows`: array of `{title=string, text=string, date=epoch, url=string}` | `nil` (restores original `news` methods) → `true`.
-
+- `setWindowProps(appId, props)` — dynamically alters an open window `(x, y, w, h, minW, minH, resizable, closable, maximizable, minimizable, title, state = "normal" | "minimized" | "maximized")` → boolean.
+- `shake([amount])` — triggers CRT-wide camera shake (Game:drawWorld) via `game.juice:shake(amount or 12)`.
 ### 10. Cosmetics
 
 * **`addTheme(row)`** — `row`: table
