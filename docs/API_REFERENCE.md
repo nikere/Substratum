@@ -167,7 +167,6 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
 - `addBootModule(name)` / `removeBootModule(name)` / `listBootModules()` — string / → array of strings.
 - `setGameLogo(path)` — `path`: string image path → `true`; replaces `self.logo` on title/boot/credits/ending and live-swaps current scene.
 - `getSetting(key)` / `setSetting(key, val)` — reads/writes `game.settings[key]` and persists settings.
-- `shake([amount])` — `game.juice:shake(amount or 2)`.
 - `setNewsEnabled(on)` — `on`: boolean (`false` sets `game.noNews = true`; `true` starts `game.news`) → boolean active state.
 - `setNewsPosts(rows)` — `rows`: array of `{title=string, text=string, date=epoch, url=string}` | `nil` (restores original `news` methods) → `true`.
 - `setWindowProps(appId, props)` — dynamically alters an open window `(x, y, w, h, minW, minH, resizable, closable, maximizable, minimizable, title, state = "normal" | "minimized" | "maximized")` → boolean.
