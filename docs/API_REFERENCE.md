@@ -103,6 +103,7 @@ Accessed via game.mods (e.g. game.mods:onReady(fn)):
     - `update(dt)` / `fixedUpdate(dt)` — `dt`: number seconds.
     - `serialize()` → table | `restore(data)` — save-slot persistence.
     - helpers: `localMouse()`, `layout()`, `print/printWrap/printFit`, `textScale()`.
+ - Optional window flags on `def` (or `AppClass`): `resizable` (bool, default `true`), `closable` (bool, default `true`), `maximizable` (bool, default `true`), `minimizable` (bool, default `true`).
 - `unlockApp(id)` / `unlockLegacyApp(id)` / `removeApp(id)` — `id`: string.
 - `listApps()` → array of strings.
 - `completeApp(appId)` / `isAppCompleted(appId)` → boolean / `getCompletedApps()` → array of strings.
