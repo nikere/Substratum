@@ -1,6 +1,6 @@
 # SUBSTRATUM SDK — Unified API Reference
 
-**Tested against:** Apotheosis Engine **1.6** · LÖVE **11.5** · Windows / Linux / macOS / Android
+> **Tested against:** Apotheosis Engine 1.6 (LÖVE 11.5) · **SDK API:** `1.2.3` · Windows / Linux / macOS / Android
 **License:** GPL-3.0 · **Requires:** a legitimate Steam copy of the game
 
 One API (`game.mods`) on every platform. Platform differences live in §2 and §15 only.
