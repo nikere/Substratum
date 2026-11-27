@@ -190,7 +190,6 @@ function M.loadMods(game)
                 end
                 print("[Substratum] Skipped (disabled): " .. folder)
             else
-
                 local chunk, loadErr = love.filesystem.load(modEntry)
                 if chunk then
                     local ok, mod = pcall(chunk)
@@ -199,13 +198,15 @@ function M.loadMods(game)
                         mod._path = modsDir .. "/" .. folder
                         mod._external = isExternal
                         mod._enabled = true
-                        mod._core = (folder == "modview")
+                        mod._core = record._core
 
                         -- Replace placeholder record with full mod metadata
                         M.discovered[#M.discovered] = mod
                         table.insert(M.loaded, mod)
                         print("[Substratum] Loaded: " .. (mod.name or folder))
-                        taint("mod:" .. (mod.name or folder))
+                        if not mod._core then
+                            taint("mod:" .. (mod.name or folder))
+                        end
                         if mod.init then
                             local initOk, err =
                                 pcall(mod.init, mod, game, folder)

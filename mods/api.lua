@@ -1,6 +1,7 @@
 -- god forgive me if someone will read this
 local Api = {}
 function Api.create(game, loaderState, getCleanState)
+  local rearmGuards = function() end
   local checkClean = getCleanState or function() return false, "unverified_caller" end
   local saveDir = love.filesystem.getSaveDirectory()
   local StringStore = require("src.services.strings")
@@ -113,6 +114,7 @@ if not ok_wo then WallpaperOverlay = nil end
         end
 
 end
+rearmGuards = applyGuards
 
 
       local okB, SB = pcall(require, "src.ui.scoreboard")
@@ -563,7 +565,7 @@ local function ensureToysPatched()
       self:unlock(id)
     end
   end
-  -- Wrap game:load so deferred hooks + mod:onLoad(game) run once all services are alive
+
   local origGameLoad = game.load
   function game:load(...)
     origGameLoad(self, ...)
@@ -584,9 +586,9 @@ local function ensureToysPatched()
         end
       end
     end
+    rearmGuards()
   end
 
-  -- Chainable hotkey dispatcher
   local origKeyPressed = game.keypressed
   function game:keypressed(key, scancode, isrepeat)
     local list = keyHandlers[key]
