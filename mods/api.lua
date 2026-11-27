@@ -634,14 +634,62 @@ local function ensureToysPatched()
     
     -- TERMINAL & LOGBOOK
     addTerminalCommand = function(self, def)
+      local TerminalApp = require("src.apps.terminal.terminal")
+      if not TerminalApp._modArgsPatched then
+        TerminalApp._modArgsPatched = true
+        local origSubmit = TerminalApp.submit
+        function TerminalApp:submit(...)
+          local trimmed = (self.input or ""):gsub("^%s+", ""):gsub("%s+$", "")
+          local rest = trimmed:match("^%S+%s+(.+)$") or ""
+          local args = {}
+          for tok in rest:gmatch("%S+") do
+            args[#args + 1] = tok
+          end
+          self._modArgs = args
+          self._modRawArgs = rest
+          local res = origSubmit(self, ...)
+          self._modArgs = nil
+          self._modRawArgs = nil
+          return res
+        end
+
+        local origRun = TerminalApp.runCommand
+        function TerminalApp:runCommand(cmd, ...)
+          if cmd and cmd._modFn then
+            local S = self.game.strings
+            local c = Theme.color
+            if cmd.lore then
+              if cmd.pace then
+                self:stream(S:localize(cmd.lore), c.cream, cmd.pace)
+              else
+                self:print(S:localize(cmd.lore), c.cream)
+              end
+            end
+            local ok, out = pcall(cmd._modFn, self._modArgs or {}, self, self._modRawArgs or "")
+            self:print(ok and (out or "") or S:line("terminal.streamCorrupted"), ok and c.cream or c.bad)
+            if cmd.reward and not self.done[cmd.name] then
+              self.done[cmd.name] = true
+              self:applyReward(cmd.reward)
+            end
+            if cmd.secret then self:grantSecret(cmd.secret) end
+            return
+          end
+          return origRun(self, cmd, ...)
+        end
+      end
+
+      if def and type(def.fn) == "function" then
+        def._modFn = def.fn
+      end
+
       local secrets = require("src.data.terminal_secrets")
       table.insert(secrets, def)
-      
 
       if package.loaded["src.data.terminal"] then
         table.insert(package.loaded["src.data.terminal"].commands, def)
       end
     end,
+
 
     addLog = function(self, key, text, kao, glitch)
       local logs = require("src.data.logs")
@@ -749,13 +797,31 @@ end,
       def.titleId = def.titleId or ("app." .. def.id)
       def.icon = def.icon or "量"
       def.unlock = def.unlock or { always = true }
+      if def.resizable   ~= nil then AppClass.resizable   = def.resizable end
+      if def.closable    ~= nil then AppClass.closable    = def.closable end
+      if def.maximizable ~= nil then AppClass.maximizable = def.maximizable end
+      if def.minimizable ~= nil then AppClass.minimizable = def.minimizable end
+
+      local Window = require("src.ui.window")
+      if not Window._modOffersPatched then
+        Window._modOffersPatched = true
+        local origOffers = Window.offers
+        function Window:offers(tag)
+          local app = self.app
+          if tag == "close" and (self.closable == false or (app and app.closable == false)) then return false end
+          if tag == "max"   and (self.maximizable == false or (app and app.maximizable == false)) then return false end
+          if tag == "min"   and (self.minimizable == false or (app and app.minimizable == false)) then return false end
+          return origOffers(self, tag)
+        end
+      end
+
 
       package.preload[modPath] = function() return AppClass end
 
       local manifest = require("src.data.apps")
       table.insert(manifest, def)
 
-      -- Inject directly into the already-constructed AppRegistry!
+      -- Inject directly into the already-constructed AppRegistry
       if game and game.apps then
         game.apps.defs[def.id] = def
         table.insert(game.apps.order, def.id)
@@ -819,30 +885,33 @@ end,
     end,
 
     setAscensionStrength = function(self, strength)
-   local Ascension = require("src.ui.ascension")
-   if not Ascension._modPatched then
-     Ascension._modPatched = true
-     Ascension._modForceK = nil
-     local origUnder = Ascension.drawUnder
-     function Ascension.drawUnder(k, ...)
-       return origUnder(Ascension._modForceK ~= nil and Ascension._modForceK or k, ...)
-     end
-     local origOver = Ascension.drawOver
-     function Ascension.drawOver(k, ...)
-       return origOver(Ascension._modForceK ~= nil and Ascension._modForceK or k, ...)
-     end
-     local origJitter = Ascension.jitter
-     function Ascension.jitter(k, ...)
-       return origJitter(Ascension._modForceK ~= nil and Ascension._modForceK or k, ...)
-     end
-     local origLabel = Ascension.labelStrength
-     function Ascension.labelStrength(k)
-       return origLabel(Ascension._modForceK ~= nil and Ascension._modForceK or k)
-     end
-   end
-   Ascension._modForceK = strength and math.max(0, math.min(1, strength)) or nil
-   return true
- end,
+      local Desktop = require("src.scenes.desktop")
+      Desktop._modAscStrength = strength
+      if not Desktop._modAscPatched then
+        Desktop._modAscPatched = true
+        local origAsc = Desktop.ascension
+        function Desktop:ascension(...)
+          if Desktop._modAscStrength ~= nil then
+            return math.max(0, math.min(1, Desktop._modAscStrength))
+          end
+          return origAsc(self, ...)
+        end
+        local origDrawScene = Desktop.drawScene
+        function Desktop:drawScene(...)
+          if Desktop._modAscStrength ~= nil and self.game and self.game.unlocks and not self.game.unlocks:flag("stage2") then
+            local Ascension = require("src.ui.ascension")
+            local asc = math.max(0, math.min(1, Desktop._modAscStrength))
+            local res = origDrawScene(self, ...)
+            if asc > 0 then
+              Ascension.drawOver(asc, self:wallpaperClock(), self.w, self.h)
+            end
+            return res
+          end
+          return origDrawScene(self, ...)
+        end
+      end
+    end,
+
 
      registerFlag = function(self, lang, drawFn)
       assert(type(lang) == "string" and type(drawFn) == "function", "registerFlag(lang, drawFn) invalid args")
@@ -990,8 +1059,13 @@ markMinigameFound = function(self, id) if game.meta then game.meta:markMinigame(
     end,
 
     addSentience = function(self, amount)
-      if game.sentience then game.sentience:add(amount) end
+      if not game.sentience then return 0 end
+      game.sentience:add(amount or 0)
+      if game.unlocks and game.unlocks.update then game.unlocks:update(0) end
+      return game.sentience:get()
     end,
+
+
 
     getSentience = function(self)
       return game.sentience and (game.sentience.value or (game.sentience.get and game.sentience:get())) or 0
@@ -1014,8 +1088,28 @@ markMinigameFound = function(self, id) if game.meta then game.meta:markMinigame(
     end,
 
     shake = function(self, amount)
-      if game.juice then game.juice:shake(amount or 2) end
+      if not game.juice then return end
+      local Game = require("src.game")
+      if not Game._modShakePatched then
+        Game._modShakePatched = true
+        local origDrawWorld = Game.drawWorld
+        function Game:drawWorld(...)
+          local j = self.juice
+          if j and (j.shakeX ~= 0 or j.shakeY ~= 0) then
+            love.graphics.push()
+            j:applyShake()
+            local res = origDrawWorld(self, ...)
+            love.graphics.pop()
+            return res
+          end
+          return origDrawWorld(self, ...)
+        end
+      end
+      game.juice:shake(amount or 12)
     end,
+
+
+
 
     getSetting = function(self, key)
       return game.settings and game.settings[key]
@@ -1217,25 +1311,51 @@ markMinigameFound = function(self, id) if game.meta then game.meta:markMinigame(
     return out
   end,
 
-    spawnVirusPopup = function(self, adIndex)
+   spawnVirusPopup = function(self, adIndex)
       local cur = game.scenes and game.scenes:current()
       local vfx = cur and (cur.virusFx or cur.virus)
       if not vfx or not vfx.spawnPopup then return nil end
-      if adIndex then
-        local VirusAds = require("src.data.virusads")
-        if VirusAds.list[adIndex] then
-          vfx.serial = (vfx.serial or 0) + 1
-          local Popup = require("src.ui.viruspopup")
-          local app = Popup(game, vfx.serial, adIndex)
-          local wa = cur:workArea()
-          local P = require("src.data.balance").virus.popup
-          local x = wa.x + love.math.random(0, math.max(0, wa.w - P.w))
-          local y = wa.y + love.math.random(0, math.max(0, wa.h - P.h))
-          return cur:openWindow(app, { titleText = app:titleText(), x = x, y = y })
+
+      local VirusAds = require("src.data.virusads")
+      local idx = adIndex
+      local tempAdded = false
+
+      if type(adIndex) == "table" then
+        local norm = function(v, fb)
+          if type(v) == "table" then return v end
+          local s = tostring(v or fb)
+          return { en = s, jp = s }
         end
+        table.insert(VirusAds.list, {
+          title = norm(adIndex.title, "ANOMALY"),
+          body = norm(adIndex.body, "SIGNAL CORRUPTED"),
+          button = norm(adIndex.button, "OK"),
+        })
+        idx = #VirusAds.list
+        tempAdded = true
       end
+
+       if idx and VirusAds.list[idx] then
+        vfx.serial = (vfx.serial or 0) + 1
+        local Popup = require("src.ui.viruspopup")
+        local adRef = VirusAds.list[idx]
+        local app = Popup(game, vfx.serial, idx)
+        if tempAdded then
+          table.remove(VirusAds.list, idx)
+          app.advert = function() return adRef end
+        end
+        local wa = cur:workArea()
+        local P = require("src.data.balance").virus.popup
+        local x = wa.x + love.math.random(0, math.max(0, wa.w - P.w))
+        local y = wa.y + love.math.random(0, math.max(0, wa.h - P.h))
+        return cur:openWindow(app, { titleText = app:titleText(), x = x, y = y })
+      end
+
+
+
       return vfx:spawnPopup()
     end,
+
 
     setGhostCount = function(self, count)
       local Virus = require("src.services.virus")
@@ -1271,12 +1391,16 @@ markMinigameFound = function(self, id) if game.meta then game.meta:markMinigame(
       local maxG = vfx and vfx.ghosts and #vfx.ghosts or 4
       Virus._modGhostMin = math.max(0, math.min(maxG, count or 0))
       if vfx and vfx.ghosts then
-        for k = 1, Virus._modGhostMin do
-          if vfx.ghosts[k] and not vfx.ghosts[k].on then
-            vfx:wake(vfx.ghosts[k])
+        for k, gh in ipairs(vfx.ghosts) do
+          if k <= Virus._modGhostMin then
+            if not gh.on then vfx:wake(gh) end
+          elseif not vfx:active() then
+            gh.on = false
+            gh.job = nil
           end
         end
       end
+
       return Virus._modGhostMin
     end,
 
@@ -1342,6 +1466,47 @@ markMinigameFound = function(self, id) if game.meta then game.meta:markMinigame(
       end
       return out
     end,
+
+    setWindowProps = function(self, appId, props)
+      local cur = game.scenes and game.scenes:current()
+      local win = cur and cur.wm and cur.wm:windowForApp(appId)
+      if not win or type(props) ~= "table" then return false end
+
+      local Window = require("src.ui.window")
+      if not Window._modOffersPatched then
+        Window._modOffersPatched = true
+        local origOffers = Window.offers
+        function Window:offers(tag)
+          local app = self.app
+          if tag == "close" and (self.closable == false or (app and app.closable == false)) then return false end
+          if tag == "max"   and (self.maximizable == false or (app and app.maximizable == false)) then return false end
+          if tag == "min"   and (self.minimizable == false or (app and app.minimizable == false)) then return false end
+          return origOffers(self, tag)
+        end
+      end
+
+      if props.x           ~= nil then win.x = props.x end
+      if props.y           ~= nil then win.y = props.y end
+      if props.w           ~= nil then win.w = props.w end
+      if props.h           ~= nil then win.h = props.h end
+      if props.minW        ~= nil then win.minW = props.minW end
+      if props.minH        ~= nil then win.minH = props.minH end
+      if props.resizable   ~= nil then win.resizable = props.resizable end
+      if props.closable    ~= nil then win.closable = props.closable end
+      if props.maximizable ~= nil then win.maximizable = props.maximizable end
+      if props.minimizable ~= nil then win.minimizable = props.minimizable end
+      if props.title       ~= nil then win.titleText = tostring(props.title) end
+      if props.state == "minimized" and win.minimize then
+        win:minimize()
+      elseif props.state == "maximized" and cur.workArea and win.maximize and win.state ~= "maximized" then
+        win:maximize(cur:workArea())
+      elseif props.state == "normal" then
+        if win.state == "minimized" and win.unminimize then win:unminimize()
+        elseif win.state == "maximized" and cur.workArea and win.maximize then win:maximize(cur:workArea()) end
+      end
+      return true
+    end,
+
     getBalance = function(self, path)
   local node = require("src.data.balance")
   for _, seg in ipairs(balanceParts(path)) do
@@ -1504,12 +1669,24 @@ end,
       return out
     end,
 
-  playBoot = function(self, mode)
+    playBoot = function(self, mode)
     local BootScene = require("src.scenes.boot")
     if game and game.scenes then
-      game.scenes:push(BootScene(game, { mode = mode or "reboot" }))
+      local m = mode or "reboot"
+      local scene = BootScene(game, { mode = m })
+      if m == "reboot" then
+        local origFinish = scene.finish
+        function scene:finish(...)
+          origFinish(self, ...)
+          if game.scenes and game.scenes:current() == self then
+            game.scenes:pop()
+          end
+        end
+      end
+      game.scenes:push(scene)
     end
   end,
+
 
   addTitleButton = function(self, id, label, fn)
   ensureTitlePatched()

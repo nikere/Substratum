@@ -12,7 +12,7 @@ M.loaded = {}
 M.discovered = {} -- All mods found (enabled + disabled)
 M.disabled = {} -- { [folder] = true }
 M.overrides = {}
-M.api = "1.2.2"
+M.api = "1.2.3"
 
 local DISABLED_FILE = "mods_disabled.txt"
 
