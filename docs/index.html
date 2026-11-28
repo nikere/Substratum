@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Substratum — Mod Loader &amp; Lua SDK for Apotheosis Engine</title>
+<meta name="description" content="Substratum is a non-destructive mod loader, unified Lua modding SDK, in-game mod manager and cross-platform builder for Apotheosis Engine (LÖVE 11.5). Windows, Linux, macOS, Android.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://nikere.github.io/Substratum/">
+<meta property="og:title" content="Substratum — Mod Loader &amp; Lua SDK for Apotheosis Engine">
+<meta property="og:description" content="modding API for every platform. (oh btw i ported them i got you) Docs, install guides and the full SDK manual.">
+<meta property="og:url" content="https://nikere.github.io/Substratum/">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Substratum",
+ "applicationCategory":"DeveloperTool","operatingSystem":"Windows, Linux, macOS, Android",
+ "license":"https://www.gnu.org/licenses/gpl-3.0",
+ "codeRepository":"https://github.com/nikere/Substratum","offers":{"@type":"Offer","price":"0"}}
+</script>
+<style>
+:root{--bg:#0b1116;--field:#0c0b13;--edge:#24343c;--cream:#ece5d3;--dim:#9fb4b0;--amber:#906fdd;--mint:#9be8c9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--cream);font:15px/1.65 ui-monospace,Consolas,Menlo,monospace}
+.top{position:sticky;top:0;z-index:5;background:var(--field);display:flex;
+justify-content:space-between;align-items:baseline;padding:10px 18px}
+.top b{color:var(--amber);letter-spacing:.1em}
+.top span{color:var(--dim);font-size:12.5px}
+.wrap{max-width:960px;margin:0 auto;padding:28px 18px 70px}
+.lede{font-size:16px}
+h2{color:var(--amber);font-size:19px;margin:36px 0 8px}
+h3{color:var(--mint);font-size:14.5px;margin:24px 0 6px}
+p,li{color:var(--dim)}p b,li b{color:var(--cream)}
+a{color:var(--mint)}
+code{color:var(--mint);background:var(--field);padding:1px 5px;border-radius:3px}
+pre{background:var(--field);border-left:3px solid var(--amber);padding:12px 14px;
+overflow-x:auto;font-size:13px;line-height:1.5}
+pre code{background:none;padding:0;color:var(--cream)}
+.badges span{display:inline-block;border:1px solid var(--edge);color:var(--dim);
+padding:2px 9px;margin:0 6px 6px 0;font-size:12px;border-radius:3px}
+ul,ol{margin:6px 0;padding-left:22px}
+li{margin:4px 0}
+.warn{border:1px solid var(--edge);border-left:3px solid var(--amber);padding:10px 14px;margin:16px 0;background:var(--field);border-radius:3px}
+.warn b{color:var(--amber)}
+#api{font-size:14.5px}
+#api h1{font-size:24px;color:var(--cream);margin:6px 0 4px}
+#api h2{font-size:19px;color:var(--amber);margin:34px 0 8px}
+#api h3{font-size:15px;color:var(--mint);margin:20px 0 6px}
+#api h4{font-size:14px;color:var(--cream);margin:16px 0 4px}
+#api table{border-collapse:collapse;width:100%;font-size:13px;margin:10px 0}
+#api td,#api th{border:1px solid var(--edge);padding:5px 9px;text-align:left;color:var(--cream)}
+#api th{color:var(--amber);background:var(--field)}
+#api ul,#api ol{padding-left:22px}
+#api hr{border:0;border-top:1px solid var(--edge);margin:26px 0}
+footer{color:var(--dim);font-size:12.5px;margin-top:56px}
+</style>
+</head>
+<body>
+<div class="top"><b>SUBSTRATUM</b><span>mod loader + lua sdk · apotheosis engine</span></div>
+<div class="wrap">
+<p class="lede">Non-destructive mod loader, unified modding API, in-game manager (<code>modview</code>)
+and cross-platform builder. One API on every platform — a mod written on Windows runs
+unmodified on Linux, macOS and Android. Ships only original code and minimal unified
+diffs, <b>NONE</b> of game assets.</p>
+
+<div class="warn"><b>Zero Copyrighted Game Assets:</b> This repository contains only original loader/SDK code and minimal unified diff patches. You must own a legitimate copy of <b>Apotheosis Engine</b> on Steam to build and run Substratum.</div>
+
+<div class="badges"><span>GPL-3.0</span><span>LÖVE 11.5</span><span>game R1.5</span>
+<span>Windows</span><span>Linux</span><span>macOS</span><span>Android</span></div>
+<p><a href="https://github.com/nikere/Substratum">GitHub</a> ·
+<a href="https://github.com/nikere/Substratum/releases">Releases</a> ·
+<a href="#manual">API manual</a></p>
+
+<h2>Quick start</h2>
+<p><b>Standalone Builders:</b> You do not need to download the entire repository, you only need <code>builder.sh</code> (Linux / macOS) or <code>builder.ps1</code> / <code>builder.bat</code> (Windows) placed next to <code>apotheosisEngine.exe</code>.</p>
+
+<h3>Windows (Desktop or Android .love)</h3>
+<ol>
+<li>Download or clone this repository (or grab the latest release zip).</li>
+<li>Copy the Substratum folder (<code>builder.bat</code>, <code>builder.ps1</code>, <code>mods/</code>, <code>patches/</code>, <code>androidlua/</code>) into your Apotheosis Engine game folder next to <code>apotheosisEngine.exe</code> (or pass <code>-GameDir "C:\Path\To\Apotheosis Engine"</code> to <code>builder.ps1</code>).</li>
+<li>Double-click <code>builder.bat</code> and select your target:
+  <ul>
+  <li><b>[1] Windows Desktop:</b> Downloads and caches the official LÖVE 11.5 runtime in <code>%LOCALAPPDATA%\Substratum</code> and outputs a standalone <code>out\Substratum\Substratum.exe</code>.</li>
+  <li><b>[2] Android LÖVE:</b> Applies <code>android.patch</code>, injects <code>android.lua</code> + a luasteam stub, and outputs <code>out\game.love</code>.</li>
+  </ul>
+</li>
+<li>Run <code>out\Substratum\Substratum.exe</code> directly (your saves remain in <code>%APPDATA%\LOVE\apot01</code>).</li>
+</ol>
+
+<h3>Android Installation</h3>
+<ol>
+<li>Build <code>out/game.love</code> using option <code>[2]</code> in <code>build.bat</code> or <code>./build.sh android</code>.</li>
+<li>Either drop <code>game.love</code> into your love-android Gradle project at <code>app/src/main/assets/game.love</code> to compile an APK, or open <code>game.love</code> directly with the <b>LÖVE for Android (11.5)</b> app.</li>
+<li><b>Grant Storage Permissions:</b> On Android 11+, you <b>must</b> manually grant <b>All Files Access</b> (<i>Settings → Apps → LÖVE / Substratum → Permissions → Files and media → Allow management of all files</i>). Without this permission, the loader cannot read or create external folders on <code>/sdcard</code>.</li>
+<li>Place custom Android mods and overrides on your device at:
+  <ul>
+  <li><code>/sdcard/apotheosis/mods/&lt;mod_folder&gt;/mod.lua</code></li>
+  <li><code>/sdcard/apotheosis/overrides/&lt;module/path&gt;.lua</code></li>
+  </ul>
+</li>
+</ol>
+
+<h3>Linux / WSL</h3>
+<ul>
+<li><b>Linux (<code>builder.sh</code>):</b> Tested on custom Linux (<code>./builder.sh desktop</code> / <code>./builder.sh android</code>). Uses system <code>love</code> if installed or caches the official LÖVE 11.5 AppImage in <code>~/.cache/substratum</code>.</li>
+<li><i>Note:</i> <code>builder.sh</code> mirrors the Windows builder logic for POSIX environments.</li>
+</ul>
+
+<h3>macOS</h3>
+<ul>
+<li><b>Build (<code>builder.sh</code>):</b> Copy <code>apotheosisEngine.exe</code> (from your Windows/Steam install) into the same folder as <code>builder.sh</code>. Open Terminal in that folder and run:
+<pre><code>chmod +x builder.sh
+./builder.sh desktop</code></pre>
+</li>
+<li>This downloads LÖVE 11.5 and bundles <code>out/Substratum/Substratum.app</code> with <code>Substratum.love</code> inside <code>Contents/Resources/</code>. Copy it to Applications:
+<pre><code>cp -R out/Substratum/Substratum.app /Applications/</code></pre>
+</li>
+<li>Double-click <code>Substratum.app</code> or launch from Terminal: <code>open /Applications/Substratum.app</code></li>
+<li><i>Note:</i> If macOS blocks the unnotarized app on first launch, right-click <code>Substratum.app</code> → Open, or run <code>xattr -cr /Applications/Substratum.app</code>.</li>
+<li><b>Mods directory:</b> <code>~/Library/Application Support/apot01/mods</code></li>
+</ul>
+
+<h2>Creating Your First Mod</h2>
+<p>Mods live in <code>%APPDATA%\apot01\mods\</code> on Windows, <code>~/.local/share/love/apot01/mods/</code> on Linux, and <code>/sdcard/apotheosis/mods/</code> on Android. Each mod is a folder containing a <code>mod.lua</code> file that returns a table:</p>
+<pre><code>local M = {
+  id      = "example_mod",
+  name    = "Example Mod",
+  version = "1.0.0",
+  author  = "YourName",
+  desc    = "Adds a custom terminal command",
+}
+
+function M:init(game)
+  -- Register a custom command in APOTHEOSIS SHELL
+  game.mods:addTerminalCommand({
+    name = "hello",
+    desc = "Prints a greeting to the shell and logbook",
+    fn = function(args, term)
+      game.mods:pushLog("Hello from Substratum! ^_^", 0)
+      return "pong (" .. table.concat(args, " ") .. ")"
+    end
+  })
+
+  -- Run logic once the game scene and subsystems are initialized
+  game.mods:onReady(function(g)
+    g.mods:pushLog("Example Mod initialized!", 0)
+  end)
+end
+
+return M</code></pre>
+<p>See the <a href="#manual">API manual</a> below for the full <code>game.mods</code> SDK reference.</p>
+
+<h2>Security &amp; Fair-Play Disclaimer</h2>
+<ul>
+<li><b>Unsandboxed Lua Execution:</b> Mods loaded through Substratum run with full LÖVE/Lua privileges (<code>io</code>, <code>os</code>, <code>ffi</code>). Only install mods and overrides from sources you trust.</li>
+<li><b>Steam Competitive Guard:</b> Substratum keeps Steamworks online for Rich Presence and overlay support, while automatically guarding Steam leaderboards, achievements, and global scoreboards whenever any mod, override, or loader shadow is active (local records still save normally).</li>
+</ul>
+<h2 id="manual">API manual</h2>
+<p>The full unified SDK reference renders live below, straight from
+<code>API_REFERENCE.md</code> — edit the md, push, refresh. No second copy to go stale.</p>
+<div id="api"><p>Loading manual…</p></div>
+<noscript><p>JavaScript off? Read the manual on
+<a href="https://github.com/nikere/Substratum/blob/main/docs/API_REFERENCE.md">GitHub</a>.</p></noscript>
+
+<footer>SUBSTRATUM · GPL-3.0 · not affiliated with genkakusoft · Apotheosis Engine is a trademark of its author</footer>
+</div>
+<script>
+fetch('API_REFERENCE.md').then(function(r){ if(!r.ok) throw 0; return r.text(); }).then(function(t){
+  var el = document.getElementById('api');
+  el.innerHTML = window.marked ? (marked.parse ? marked.parse(t) : marked(t))
+                               : '<pre>' + t.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>';
+}).catch(function(){
+  document.getElementById('api').innerHTML =
+    '<p>Could not load the manual here — read it on ' +
+    '<a href="https://github.com/nikere/Substratum/blob/main/docs/API_REFERENCE.md">GitHub</a>.</p>';
+});
+</script>
+</body>
+</html>
