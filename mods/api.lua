@@ -2028,21 +2028,14 @@ end,
       if row.chrome and (row.chrome.stripe or (row.chrome.border or 1) > 1) then
         ensureChromePatched()
       end
-
-
       -- Register display name & description in StringStore
       if row.name then modLabels[row.nameId] = row.name end
       if row.tip then modLabels[row.tipId] = row.tip end
-
-
       local res = {}
       for k, v in pairs(Theme.stock) do res[k] = { v[1], v[2], v[3], v[4] } end
       for k, v in pairs(row.palette) do
-
           res[k] = type(v) == "string" and Theme.hex(v) or { v[1], v[2], v[3], v[4] or 1 }
-
       end
-
       -- Auto-derive inactive window titlebar colors when not explicitly specified
       if not row.palette.titlebarBlur and res.titlebar then
         res.titlebarBlur = { res.titlebar[1] * 0.45, res.titlebar[2] * 0.45, res.titlebar[3] * 0.45, res.titlebar[4] or 1 }
@@ -2053,12 +2046,10 @@ end,
       if not row.palette.titlebarTextBlur and res.titlebarText then
         res.titlebarTextBlur = { res.titlebarText[1] * 0.65, res.titlebarText[2] * 0.65, res.titlebarText[3] * 0.65, res.titlebarText[4] or 1 }
       end
-
       row.resolved = res
       local cols = {}
       for j, h in ipairs(row.trailColors) do cols[j] = Theme.hex(h) end
       row.trailRGB = cols
-
       local existing = Aesthetics.byId[row.id]
       if existing then
         row.index = existing.index
@@ -2069,7 +2060,6 @@ end,
       end
       Aesthetics.byId[row.id] = row
     end,
-
   }
   local androidChunk = love.filesystem.load("mods/android.lua")
   if androidChunk then
@@ -2085,6 +2075,5 @@ end,
     end,
     __metatable = false
   })
-
 end
 return Api
